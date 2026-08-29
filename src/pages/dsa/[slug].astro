@@ -1,0 +1,42 @@
+---
+import { getCollection, render } from 'astro:content';
+import PostLayout from '../../layouts/PostLayout.astro';
+import Badge from '../../components/Badge.astro';
+import { tagVariant, difficultyVariant } from '../../lib/format';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('dsa', ({ data }) => !data.draft);
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const { title, difficulty, pattern, date, problemUrl, timeComplexity, spaceComplexity, summary } = entry.data;
+---
+
+<PostLayout title={title} description={summary} date={date} backHref="/dsa" backLabel="All DSA problems">
+  <Fragment slot="meta">
+    <Badge variant={difficultyVariant(difficulty)}>{difficulty}</Badge>
+    {pattern.map((p) => <Badge variant={tagVariant(p)}>{p}</Badge>)}
+    {problemUrl && (
+      <a
+        href={problemUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-sm font-medium text-brand-green-dark hover:underline dark:text-brand-green"
+      >
+        Problem link &rarr;
+      </a>
+    )}
+  </Fragment>
+
+  <div class="not-prose mb-6 flex flex-wrap gap-4 rounded-lg border border-hairline bg-surface-soft p-4 text-sm">
+    <p><span class="font-semibold text-ink">Time:</span> <code>{timeComplexity}</code></p>
+    <p><span class="font-semibold text-ink">Space:</span> <code>{spaceComplexity}</code></p>
+  </div>
+
+  <Content />
+</PostLayout>

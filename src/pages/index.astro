@@ -1,0 +1,61 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ActivityCard from '../components/ActivityCard.astro';
+import StreakBadge from '../components/StreakBadge.astro';
+import { getAllActivity } from '../lib/activity';
+
+const activity = await getAllActivity();
+const latest = activity.slice(0, 6);
+---
+
+<BaseLayout title="dailydevlog">
+  <section class="grid gap-6 sm:grid-cols-[2fr_1fr]">
+    <div class="rounded-lg border border-hairline bg-canvas p-6 sm:p-8">
+      <p class="text-xs font-semibold tracking-wide text-brand-green-dark uppercase dark:text-brand-green">
+        Learning in public
+      </p>
+      <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+        Building software engineering fundamentals, one day at a time.
+      </h1>
+      <p class="mt-4 max-w-2xl text-base leading-relaxed text-slate">
+        I'm spending 4 months solving a DSA problem and writing full-stack notes every day, and posting the
+        write-ups here as I go. This site is the public record — solutions with explanations, blog posts on
+        what I'm building, and a short daily log tying it all together.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a
+          href="/daily-log"
+          class="rounded-full bg-brand-green px-5 py-2.5 text-sm font-semibold text-on-primary"
+        >
+          Follow the daily log
+        </a>
+        <a
+          href="/dsa"
+          class="rounded-full border border-hairline-strong px-5 py-2.5 text-sm font-semibold text-ink"
+        >
+          Browse DSA solutions
+        </a>
+      </div>
+    </div>
+    <StreakBadge />
+  </section>
+
+  <section class="mt-12">
+    <div class="flex items-baseline justify-between">
+      <h2 class="text-xl font-semibold tracking-tight text-ink">Latest activity</h2>
+      <a href="/search" class="text-sm font-medium text-brand-green-dark hover:underline dark:text-brand-green">
+        View all &rarr;
+      </a>
+    </div>
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      {latest.map((item) => <ActivityCard item={item} />)}
+    </div>
+    {
+      latest.length === 0 && (
+        <p class="mt-5 rounded-lg border border-dashed border-hairline p-8 text-center text-sm text-stone">
+          No entries yet — the first daily log post will show up here.
+        </p>
+      )
+    }
+  </section>
+</BaseLayout>

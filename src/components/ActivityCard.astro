@@ -1,0 +1,57 @@
+---
+import Badge from './Badge.astro';
+import { formatDate, tagVariant, difficultyVariant } from '../lib/format';
+import type { ActivityItem } from '../lib/activity';
+
+interface Props {
+  item: ActivityItem;
+}
+
+const { item } = Astro.props;
+
+const kindLabel: Record<ActivityItem['kind'], string> = {
+  dsa: 'DSA',
+  fsd: 'Full Stack',
+  'daily-log': 'Daily Log',
+};
+
+const kindColor: Record<ActivityItem['kind'], string> = {
+  dsa: 'text-accent-blue',
+  fsd: 'text-brand-green-dark',
+  'daily-log': 'text-accent-purple',
+};
+---
+
+<a
+  href={item.href}
+  class="group block rounded-lg border border-hairline bg-canvas p-5 transition-colors hover:border-hairline-strong"
+  data-search-item
+  data-kind={item.kind}
+  data-title={item.title.toLowerCase()}
+  data-summary={item.summary.toLowerCase()}
+  data-tags={item.tags.join(' ').toLowerCase()}
+>
+  <div class="flex items-center justify-between gap-3">
+    <span class:list={['text-xs font-semibold tracking-wide uppercase', kindColor[item.kind]]}>
+      {kindLabel[item.kind]}
+    </span>
+    <time datetime={item.date.toISOString()} class="text-xs text-stone">{formatDate(item.date)}</time>
+  </div>
+  <h3 class="mt-2 text-lg font-semibold text-ink group-hover:text-brand-green-dark dark:group-hover:text-brand-green">
+    {item.title}
+  </h3>
+  <p class="mt-1 line-clamp-2 text-sm text-slate">{item.summary}</p>
+  {
+    item.tags.length > 0 && (
+      <div class="mt-3 flex flex-wrap gap-1.5">
+        {item.tags.slice(0, 4).map((tag) =>
+          item.kind === 'dsa' && ['Easy', 'Medium', 'Hard'].includes(tag) ? (
+            <Badge variant={difficultyVariant(tag)}>{tag}</Badge>
+          ) : (
+            <Badge variant={tagVariant(tag)}>{tag}</Badge>
+          )
+        )}
+      </div>
+    )
+  }
+</a>

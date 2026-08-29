@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ActivityCard from '../../components/ActivityCard.astro';
+import FilterBar from '../../components/FilterBar.astro';
+import { getSortedActivityByKind } from '../../lib/activity';
+
+const entries = await getSortedActivityByKind('dsa');
+const tags = [...new Set(entries.flatMap((e) => e.tags))].sort();
+---
+
+<BaseLayout title="DSA" description="Daily DSA problem write-ups with explanations and complexity analysis.">
+  <header>
+    <h1 class="text-3xl font-semibold tracking-tight text-ink">DSA Problems</h1>
+    <p class="mt-2 max-w-2xl text-slate">
+      Problem write-ups from daily practice — approach, solution, and time/space complexity for each.
+    </p>
+  </header>
+
+  <div class="mt-6">
+    <FilterBar tags={tags} placeholder="Search problems…" />
+  </div>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    {entries.map((item) => <ActivityCard item={item} />)}
+  </div>
+  {
+    entries.length === 0 && (
+      <p class="mt-5 rounded-lg border border-dashed border-hairline p-8 text-center text-sm text-stone">
+        No DSA write-ups yet.
+      </p>
+    )
+  }
+</BaseLayout>

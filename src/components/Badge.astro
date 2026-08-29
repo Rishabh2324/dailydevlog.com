@@ -1,0 +1,28 @@
+---
+interface Props {
+  variant?: 'green' | 'green-soft' | 'purple' | 'orange' | 'blue' | 'pink' | 'neutral';
+  class?: string;
+}
+
+const { variant = 'neutral', class: className = '' } = Astro.props;
+
+const variants: Record<string, string> = {
+  green: 'bg-brand-green text-on-primary',
+  'green-soft': 'bg-brand-green-soft text-brand-green-dark',
+  purple: 'bg-accent-purple text-on-dark',
+  orange: 'bg-accent-orange text-on-dark',
+  blue: 'bg-accent-blue text-on-dark',
+  pink: 'bg-accent-pink text-on-dark',
+  neutral: 'bg-surface-soft text-steel border border-hairline',
+};
+---
+
+<span
+  class:list={[
+    'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase',
+    variants[variant],
+    className,
+  ]}
+>
+  <slot />
+</span>

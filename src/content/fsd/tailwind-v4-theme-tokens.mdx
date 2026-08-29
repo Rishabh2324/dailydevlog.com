@@ -1,0 +1,28 @@
+---
+title: Theming with Tailwind v4's @theme
+date: 2026-05-04
+tags: [CSS, Tailwind]
+stack: [Tailwind CSS v4]
+summary: How this site's design tokens map into Tailwind v4's CSS-first @theme configuration.
+---
+
+Tailwind v4 moves configuration into CSS. Instead of a `tailwind.config.js` object, design tokens are declared as
+CSS custom properties inside an `@theme` block, and Tailwind generates utility classes from them automatically.
+
+```css
+@import "tailwindcss";
+
+@theme {
+  --color-brand-green: #00ed64;
+  --radius-lg: 12px;
+}
+```
+
+Declaring `--color-brand-green` makes `bg-brand-green`, `text-brand-green`, and `border-brand-green` all available
+immediately — no separate `extend.colors` entry needed.
+
+## Dark mode without a config flag
+
+A `@custom-variant dark` declaration plus a `.dark` class on `<html>` is enough to get a `dark:` variant, and
+since the palette lives in real CSS variables, overriding them under `.dark { --color-canvas: ...; }` re-themes
+every component built against those tokens for free.

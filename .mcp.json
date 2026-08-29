@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "codebase-memory": {
+      "type": "stdio",
+      "command": "/Users/rishabhjain/.local/bin/codebase-memory-mcp",
+      "args": [],
+      "env": {}
+    },
+    "astro-docs": {
+      "type": "http",
+      "url": "https://mcp.docs.astro.build/mcp"
+    }
+  }
+}

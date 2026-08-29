@@ -1,0 +1,51 @@
+---
+title: Binary Tree Level Order Traversal
+difficulty: Medium
+pattern: [Trees, BFS]
+date: 2026-05-03
+problemUrl: https://leetcode.com/problems/binary-tree-level-order-traversal/
+timeComplexity: O(n)
+spaceComplexity: O(n)
+summary: Traverse a binary tree level by level using a queue-based BFS.
+---
+
+## Problem
+
+Given the root of a binary tree, return the values of its nodes grouped level by level.
+
+## Approach
+
+BFS is the natural fit for level-order traversal: process nodes in a queue, and track how many nodes belong to the
+current level before dequeuing them, so each level can be collected into its own array.
+
+## Solution
+
+```ts
+function levelOrder(root: TreeNode | null): number[][] {
+  if (!root) return [];
+
+  const result: number[][] = [];
+  const queue: TreeNode[] = [root];
+
+  while (queue.length > 0) {
+    const levelSize = queue.length;
+    const level: number[] = [];
+
+    for (let i = 0; i < levelSize; i++) {
+      const node = queue.shift()!;
+      level.push(node.val);
+      if (node.left) queue.push(node.left);
+      if (node.right) queue.push(node.right);
+    }
+
+    result.push(level);
+  }
+
+  return result;
+}
+```
+
+## Complexity
+
+- **Time:** `O(n)` — every node is visited exactly once.
+- **Space:** `O(n)` — the queue can hold up to one full level, and the output stores every node.

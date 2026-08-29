@@ -1,0 +1,51 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-hairline-dark bg-brand-teal-deep text-on-dark">
+  <div class="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+    <div class="flex flex-col gap-8 sm:flex-row sm:justify-between">
+      <div class="max-w-sm">
+        <p class="text-sm font-semibold text-on-dark">dailydevlog</p>
+        <p class="mt-2 text-sm text-on-dark-muted">
+          A public build log — DSA practice and full-stack notes, written daily for 4 months.
+        </p>
+      </div>
+      <div class="flex flex-col gap-2 text-sm">
+        <a href="/dsa" class="text-on-dark-muted transition-colors hover:text-on-dark">DSA Problems</a>
+        <a href="/fsd" class="text-on-dark-muted transition-colors hover:text-on-dark">Full Stack Notes</a>
+        <a href="/daily-log" class="text-on-dark-muted transition-colors hover:text-on-dark">Daily Log</a>
+        <a href="/rss.xml" class="text-on-dark-muted transition-colors hover:text-on-dark">RSS Feed</a>
+      </div>
+      <div class="flex flex-col gap-2 text-sm">
+        <a
+          href="https://github.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-on-dark-muted transition-colors hover:text-on-dark"
+        >
+          Source on GitHub
+        </a>
+        <a
+          href="https://opensource.org/license/mit/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-on-dark-muted transition-colors hover:text-on-dark"
+        >
+          Code: MIT License
+        </a>
+        <a
+          href="https://creativecommons.org/licenses/by/4.0/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-on-dark-muted transition-colors hover:text-on-dark"
+        >
+          Writing: CC BY 4.0
+        </a>
+      </div>
+    </div>
+    <div class="mt-10 border-t border-hairline-dark pt-6 text-xs text-on-dark-muted">
+      &copy; {year} dailydevlog.com &middot; Built with Astro.
+    </div>
+  </div>
+</footer>

@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ActivityCard from '../../components/ActivityCard.astro';
+import FilterBar from '../../components/FilterBar.astro';
+import StreakBadge from '../../components/StreakBadge.astro';
+import { getSortedActivityByKind } from '../../lib/activity';
+
+const entries = await getSortedActivityByKind('daily-log');
+const tags = [...new Set(entries.flatMap((e) => e.tags))].sort();
+---
+
+<BaseLayout title="Daily Log" description="Short daily entries tracking what was studied and practiced each day.">
+  <header>
+    <h1 class="text-3xl font-semibold tracking-tight text-ink">Daily Log</h1>
+    <p class="mt-2 max-w-2xl text-slate">
+      A short entry for every day of the 4-month journey — what got studied, what got built.
+    </p>
+  </header>
+
+  <div class="mt-6">
+    <StreakBadge />
+  </div>
+
+  <div class="mt-6">
+    <FilterBar tags={tags} placeholder="Search daily entries…" />
+  </div>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    {entries.map((item) => <ActivityCard item={item} />)}
+  </div>
+  {
+    entries.length === 0 && (
+      <p class="mt-5 rounded-lg border border-dashed border-hairline p-8 text-center text-sm text-stone">
+        No daily entries yet.
+      </p>
+    )
+  }
+</BaseLayout>

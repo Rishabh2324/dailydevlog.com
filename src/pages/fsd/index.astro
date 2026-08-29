@@ -1,0 +1,33 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ActivityCard from '../../components/ActivityCard.astro';
+import FilterBar from '../../components/FilterBar.astro';
+import { getSortedActivityByKind } from '../../lib/activity';
+
+const entries = await getSortedActivityByKind('fsd');
+const tags = [...new Set(entries.flatMap((e) => e.tags))].sort();
+---
+
+<BaseLayout title="Full Stack" description="Full-stack development notes, tech-stack breakdowns, and build logs.">
+  <header>
+    <h1 class="text-3xl font-semibold tracking-tight text-ink">Full Stack Notes</h1>
+    <p class="mt-2 max-w-2xl text-slate">
+      Blog posts and notes from full-stack work — frameworks, databases, infra, and everything in between.
+    </p>
+  </header>
+
+  <div class="mt-6">
+    <FilterBar tags={tags} placeholder="Search posts…" />
+  </div>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-2">
+    {entries.map((item) => <ActivityCard item={item} />)}
+  </div>
+  {
+    entries.length === 0 && (
+      <p class="mt-5 rounded-lg border border-dashed border-hairline p-8 text-center text-sm text-stone">
+        No full-stack posts yet.
+      </p>
+    )
+  }
+</BaseLayout>

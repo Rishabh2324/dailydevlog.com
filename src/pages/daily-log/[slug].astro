@@ -1,0 +1,48 @@
+---
+import { getCollection, render } from 'astro:content';
+import PostLayout from '../../layouts/PostLayout.astro';
+import Badge from '../../components/Badge.astro';
+import { tagVariant } from '../../lib/format';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('daily-log');
+  return entries.map((entry) => ({
+    params: { slug: entry.id },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await render(entry);
+const { day, date, tags, summary, links } = entry.data;
+---
+
+<PostLayout title={`Day ${day}`} description={summary} date={date} backHref="/daily-log" backLabel="All daily entries">
+  <Fragment slot="meta">
+    {tags.map((t) => <Badge variant={tagVariant(t)}>{t}</Badge>)}
+  </Fragment>
+
+  <Content />
+
+  {
+    links.length > 0 && (
+      <div class="not-prose mt-8 rounded-lg border border-hairline bg-surface-soft p-4">
+        <p class="text-sm font-semibold text-ink">Referenced</p>
+        <ul class="mt-2 space-y-1">
+          {links.map((link) => (
+            <li>
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-sm text-brand-green-dark hover:underline dark:text-brand-green"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+</PostLayout>
