@@ -1,0 +1,113 @@
+---
+title: Second Largest Distinct Number
+difficulty: Easy
+pattern: [Arrays, Single Pass]
+date: 2026-08-31
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the second largest distinct number in an array in a single pass, handling too-short and all-equal inputs.
+---
+
+## 1. Restate the problem
+
+Write a function `secondLargest(arr)` that returns the second largest *distinct* value in an array of numbers.
+
+- If the array has fewer than two elements, that's invalid input — return `Array should have at least two numbers.`
+- If every element is the same value, there's no second distinct value — return `No second largest found.`
+- Otherwise, return the largest value that is strictly less than the maximum.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of numbers, of any length.
+- **Output:** a number, or one of two fixed strings for invalid/degenerate input.
+- **Constraints noted:**
+  - Array length can be 0 or 1 → invalid, return the length message.
+  - All elements equal (including a 2-element array like `[4, 4]`) → return the "not found" message.
+  - Duplicates of the max are fine as long as a smaller distinct value exists, e.g. `[9, 9, 7]` → `7`.
+  - Negative numbers are valid and should compare correctly.
+  - Order doesn't matter — `[10, 20]` → `10`, since 10 is the second largest distinct value.
+
+## 3. Work a small example by hand
+
+`arr = [0, 3, 5, 2, 7, 9]`
+
+Track `largest` and `secondLargest` while scanning left to right:
+
+| num | largest | secondLargest |
+|-----|---------|----------------|
+| 0   | 0       | -Infinity      |
+| 3   | 3       | 0              |
+| 5   | 5       | 3              |
+| 2   | 5       | 3              |
+| 7   | 7       | 5              |
+| 9   | 9       | 7              |
+
+Final `secondLargest = 7`, which matches the expected output.
+
+## 4. Brute force first
+
+Sort a copy of the array descending, dedupe, then take the element at index 1.
+
+```ts
+function secondLargestBruteForce(arr) {
+  if (arr.length < 2) return 'Array should have at least two numbers.';
+  const unique = [...new Set(arr)].sort((a, b) => b - a);
+  if (unique.length < 2) return 'No second largest found.';
+  return unique[1];
+}
+```
+
+- **Time:** `O(n log n)` for the sort.
+- **Space:** `O(n)` for the deduped copy.
+
+Correct, but sorting the whole array is overkill when we only need the top two distinct values.
+
+## 5. Identify the pattern and optimize
+
+This is a **single-pass tracking** problem, the same family as "find max" but keeping one extra variable for the runner-up. Instead of sorting everything (`O(n log n)`), track `largest` and `secondLargest` as we scan once (`O(n)`), updating both only when we see a strictly larger or strictly-between value. That closes the gap from `O(n log n)` / `O(n)` space down to `O(n)` time / `O(1)` space.
+
+## 6. Code it
+
+```ts
+function secondLargest(arr) {
+  if (arr.length < 2) {
+    return 'Array should have at least two numbers.';
+  }
+
+  let largest = -Infinity;
+  let secondLargest = -Infinity;
+
+  for (const num of arr) {
+    if (num > largest) {
+      secondLargest = largest;
+      largest = num;
+    } else if (num > secondLargest && num < largest) {
+      secondLargest = num;
+    }
+  }
+
+  if (secondLargest === -Infinity) {
+    return 'No second largest found.';
+  }
+
+  return secondLargest;
+}
+```
+
+## 7. Test it manually
+
+- `[0, 3, 5, 2, 7, 9]` → traced in step 3 → `7` ✓
+- `[4, 4, 4, 4]` → every `num === largest` after the first update, never `> secondLargest && < largest` → `secondLargest` stays `-Infinity` → `No second largest found.` ✓
+- `[5]` → `arr.length < 2` → `Array should have at least two numbers.` ✓
+- `[10, 20]` → `10` sets `largest = 10`; `20 > 10` sets `secondLargest = 10, largest = 20` → returns `10` ✓
+
+## 8. Review and log
+
+- **Approach used:** single-pass dual-tracking (largest / secondLargest), same family as Kadane's-style running-state problems.
+- **Mistake to watch for:** using `>=` instead of `>` when updating `secondLargest` would let a duplicate of `largest` count as the second largest — must stay strictly less than `largest`.
+- **Recurring pattern to log:** "track top-2 in one pass" generalizes to top-k with a small sorted window instead of full sort.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array.
+- **Space:** `O(1)` — two extra variables regardless of input size.

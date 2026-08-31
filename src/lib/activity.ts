@@ -1,6 +1,6 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
 
-export type ActivityKind = 'dsa' | 'fsd' | 'daily-log';
+export type ActivityKind = 'dsa' | 'daily-log';
 
 export interface ActivityItem {
   kind: ActivityKind;
@@ -24,18 +24,6 @@ function dsaToActivity(entry: CollectionEntry<'dsa'>): ActivityItem {
   };
 }
 
-function fsdToActivity(entry: CollectionEntry<'fsd'>): ActivityItem {
-  return {
-    kind: 'fsd',
-    slug: entry.id,
-    href: `/fsd/${entry.id}`,
-    title: entry.data.title,
-    date: entry.data.date,
-    summary: entry.data.summary,
-    tags: [...entry.data.tags, ...entry.data.stack],
-  };
-}
-
 function dailyLogToActivity(entry: CollectionEntry<'daily-log'>): ActivityItem {
   return {
     kind: 'daily-log',
@@ -49,17 +37,12 @@ function dailyLogToActivity(entry: CollectionEntry<'daily-log'>): ActivityItem {
 }
 
 export async function getAllActivity(): Promise<ActivityItem[]> {
-  const [dsaEntries, fsdEntries, dailyLogEntries] = await Promise.all([
+  const [dsaEntries, dailyLogEntries] = await Promise.all([
     getCollection('dsa', ({ data }) => !data.draft),
-    getCollection('fsd', ({ data }) => !data.draft),
     getCollection('daily-log'),
   ]);
 
-  const items = [
-    ...dsaEntries.map(dsaToActivity),
-    ...fsdEntries.map(fsdToActivity),
-    ...dailyLogEntries.map(dailyLogToActivity),
-  ];
+  const items = [...dsaEntries.map(dsaToActivity), ...dailyLogEntries.map(dailyLogToActivity)];
 
   return items.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

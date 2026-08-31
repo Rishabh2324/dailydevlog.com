@@ -17,19 +17,6 @@ const dsa = defineCollection({
     }),
 });
 
-const fsd = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/fsd' }),
-  schema: () =>
-    z.object({
-      title: z.string(),
-      date: z.coerce.date(),
-      tags: z.array(z.string()),
-      stack: z.array(z.string()).default([]),
-      summary: z.string(),
-      draft: z.boolean().default(false),
-    }),
-});
-
 const dailyLog = defineCollection({
   loader: glob({ pattern: '**/*.mdx', base: './src/content/daily-log' }),
   schema: () =>
@@ -49,4 +36,4 @@ const dailyLog = defineCollection({
     }),
 });
 
-export const collections = { dsa, fsd, 'daily-log': dailyLog };
+export const collections = { dsa, 'daily-log': dailyLog };

@@ -8,15 +8,14 @@ const entries = await getAllActivity();
 const tags = [...new Set(entries.flatMap((e) => e.tags))].sort();
 const kinds = [
   { value: 'dsa', label: 'DSA' },
-  { value: 'fsd', label: 'Full Stack' },
   { value: 'daily-log', label: 'Daily Log' },
 ];
 ---
 
-<BaseLayout title="Search" description="Search and filter every DSA problem, blog post, and daily log entry.">
+<BaseLayout title="Search" description="Search and filter every DSA problem and daily log entry.">
   <header>
     <h1 class="text-3xl font-semibold tracking-tight text-ink">Search</h1>
-    <p class="mt-2 max-w-2xl text-slate">Filter across every DSA problem, blog post, and daily entry.</p>
+    <p class="mt-2 max-w-2xl text-slate">Filter across every DSA problem and daily entry.</p>
   </header>
 
   <div class="mt-6">
