@@ -1,0 +1,96 @@
+---
+title: Remove Element
+difficulty: Easy
+pattern: [Arrays, Two Pointers]
+date: 2026-09-04
+problemUrl: https://leetcode.com/problems/remove-element/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Remove all occurrences of a value from an array in place using two pointers, so the first k elements hold everything else.
+---
+
+## 1. Restate the problem
+
+Given an integer array `nums` and an integer `val`, remove all occurrences of `val` **in place**. The order of the remaining elements may be changed. Return `k`, the number of elements not equal to `val`, with `nums[0..k-1]` holding those elements in any order — what's beyond index `k` doesn't matter.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of integers `nums`, length `0 <= nums.length <= 100`, and an integer `val`.
+- **Output:** an integer `k`, the count of elements not equal to `val`, with `nums[0..k-1]` holding those values (order doesn't matter, unlike the "remove duplicates" problem).
+- **Constraints noted:**
+  - Array can be empty → `k = 0`.
+  - `val` may not appear at all, e.g. `nums = [1, 2, 3], val = 5` → `k = 3`, array unchanged (in any order).
+  - Every element equals `val`, e.g. `nums = [2, 2, 2], val = 2` → `k = 0`.
+  - Duplicates of `val` and of other values can be mixed arbitrarily — array is **not** sorted, unlike "remove duplicates from sorted array."
+  - Must not use extra array/copy — in-place modification only.
+
+## 3. Work a small example by hand
+
+`nums = [3, 2, 2, 3], val = 3`
+
+Track a write pointer `x` (next slot for a non-`val` value, starts at `0`) and a travel pointer `i` scanning from `0`. Whenever `nums[i] !== val`, write it to `nums[x]` and advance `x`:
+
+| i | nums[i] | is val? | action              | x after |
+|---|---------|---------|----------------------|---------|
+| 0 | 3       | yes     | skip                  | 0       |
+| 1 | 2       | no      | nums[0]=2 → x=1       | 1       |
+| 2 | 2       | no      | nums[1]=2 → x=2       | 2       |
+| 3 | 3       | yes     | skip                  | 2       |
+
+Loop ends with `x = 2`, giving `k = 2`, and `nums[0..1] = [2, 2]` — both `2`s, with the `3`s removed, matching the expected result (order irrelevant).
+
+## 4. Brute force first
+
+Filter into a new array, then copy back.
+
+```ts
+function removeElementBruteForce(nums, val) {
+  const filtered = nums.filter((n) => n !== val);
+  for (let i = 0; i < filtered.length; i++) {
+    nums[i] = filtered[i];
+  }
+  return filtered.length;
+}
+```
+
+- **Time:** `O(n)` for the filter and copy-back.
+- **Space:** `O(n)` for the filtered array — violates the in-place constraint.
+
+## 5. Identify the pattern and optimize
+
+This is a **two-pointer (slow/fast)** in-place array problem, the same shape as "remove duplicates from sorted array" but with a simpler condition: no sortedness to lean on, just a direct equality check against `val`. A write pointer `x` marks the next free slot among the elements to keep, while a travel pointer `i` scans every element once; whenever `nums[i]` isn't `val`, it's copied to `nums[x]` and `x` advances. Since order doesn't matter, no shifting or swapping is needed beyond this single overwrite — one pass, `O(n)` time, `O(1)` space, no extra array.
+
+## 6. Code it
+
+```ts
+function removeElement(nums: number[], val: number): number {
+  let x = 0;
+
+  for (let i = 0; i < nums.length; i++) {
+    if (nums[i] !== val) {
+      nums[x] = nums[i];
+      x++;
+    }
+  }
+
+  return x;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [3, 2, 2, 3], val = 3` → traced in step 3 → `x = 2` → returns `2`, `nums[0..1] = [2, 2]` ✓
+- `nums = [0, 1, 2, 2, 3, 0, 4, 2], val = 2` → every non-`2` value (`0,1,3,0,4`) gets copied forward in order as `i` scans → `x` ends at `5` → returns `5`, `nums[0..4] = [0, 1, 3, 0, 4]` ✓
+- `nums = [], val = 0` → loop never runs (`nums.length` is `0`) → returns `0` ✓
+- `nums = [2, 2, 2], val = 2` → every `nums[i] === val`, `x` never advances → returns `0` ✓
+
+## 8. Review and log
+
+- **Approach used:** slow/fast two-pointer in-place compaction, where the write pointer `x` only advances on a value worth keeping — same family as "remove duplicates from sorted array," minus the sortedness check.
+- **Mistake to watch for:** advancing `x` unconditionally (or advancing it before the write) would overwrite good data or miscount — `x` must only move *after* a successful write, and only when `nums[i] !== val`.
+- **Recurring pattern to log:** "write pointer marks the next free slot for values to keep, travel pointer scans and conditionally copies" generalizes to in-place filtering problems (move zeroes, partition by predicate, remove duplicates).
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array with the travel pointer.
+- **Space:** `O(1)` — modifies the array in place with two index variables.
