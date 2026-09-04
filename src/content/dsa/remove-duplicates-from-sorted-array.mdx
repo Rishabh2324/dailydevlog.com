@@ -1,0 +1,103 @@
+---
+title: Remove Duplicates from Sorted Array
+difficulty: Easy
+pattern: [Arrays, Two Pointers]
+date: 2026-09-04
+problemUrl: https://leetcode.com/problems/remove-duplicates-from-sorted-array
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Remove duplicates from a sorted array in place using two pointers, so only distinct values remain in the front of the array.
+---
+
+## 1. Restate the problem
+
+Given an integer array `nums` sorted in non-decreasing order, remove the duplicates **in place** so that each unique element appears only once. The relative order of the elements should be kept the same.
+
+Since the array must be modified in place with `O(1)` extra memory, the return value is `k`, the number of unique elements. The first `k` elements of `nums` must hold the final result in sorted order — what happens after index `k` doesn't matter.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of integers `nums`, sorted in non-decreasing order, length `1 <= nums.length <= 3 * 10^4`.
+- **Output:** an integer `k`, the count of unique elements, with `nums[0..k-1]` holding those unique values in order.
+- **Constraints noted:**
+  - Array is always sorted ascending — duplicates are always adjacent.
+  - Array length is always at least 1 (no empty-array case per constraints), so a single-element array is the smallest input and its answer is trivially `k = 1`.
+  - All elements identical, e.g. `[1, 1, 1, 1]` → `k = 1`, `nums[0] = 1`.
+  - No duplicates at all, e.g. `[1, 2, 3]` → `k = 3`, array unchanged.
+  - Must not use extra array/copy — in-place modification only.
+
+## 3. Work a small example by hand
+
+`nums = [0, 0, 1, 1, 1, 2, 2, 3, 3, 4]`
+
+Track a unique-index pointer `x` (starts at `0`, always points at the last written unique value) and a travel pointer `i` scanning from `1`. Whenever `nums[i] > nums[x]`, advance `x` and write `nums[i]` there — since the array is sorted ascending, `nums[i]` can never be *less* than `nums[x]`, so `>` alone is enough to detect a new distinct value:
+
+| i  | nums[i] | nums[x] | action           | x after |
+|----|---------|---------|-------------------|---------|
+| 1  | 0       | 0       | skip (not >)      | 0       |
+| 2  | 1       | 0       | 1 > 0 → write nums[1]=1 | 1       |
+| 3  | 1       | 1       | skip               | 1       |
+| 4  | 1       | 1       | skip               | 1       |
+| 5  | 2       | 1       | 2 > 1 → write nums[2]=2 | 2       |
+| 6  | 2       | 2       | skip               | 2       |
+| 7  | 3       | 2       | 3 > 2 → write nums[3]=3 | 3       |
+| 8  | 3       | 3       | skip               | 3       |
+| 9  | 4       | 3       | 4 > 3 → write nums[4]=4 | 4       |
+
+Loop ends with `x = 4`. Since `x` is 0-indexed, the count of uniques is `x + 1 = 5`, and `nums[0..4] = [0, 1, 2, 3, 4]`, matching the expected unique values.
+
+## 4. Brute force first
+
+Copy unique values into a new array (e.g. via a `Set`, which preserves insertion order and the input is already sorted), then write them back into `nums`.
+
+```ts
+function removeDuplicatesBruteForce(nums) {
+  const unique = [...new Set(nums)];
+  for (let i = 0; i < unique.length; i++) {
+    nums[i] = unique[i];
+  }
+  return unique.length;
+}
+```
+
+- **Time:** `O(n)` to build the set and copy back.
+- **Space:** `O(n)` for the extra `Set`/array — violates the in-place constraint even though it's linear time.
+
+## 5. Identify the pattern and optimize
+
+This is a classic **two-pointer (slow/fast)** in-place array problem. Since the array is already sorted, every duplicate of a value sits immediately next to it, so a single travel pointer `i` can scan forward while a unique-index pointer `x` marks the last written unique value. Because sorted order rules out `nums[i] < nums[x]`, a plain `nums[i] > nums[x]` check is all that's needed to detect a new distinct value — no extra array, `O(n)` time, `O(1)` space.
+
+## 6. Code it
+
+```ts
+function removeDuplicates(nums: number[]): number {
+  let x = 0;
+
+  for (let i = 1; i < nums.length; i++) {
+    if (nums[i] > nums[x]) {
+      x++;
+      nums[x] = nums[i];
+    }
+  }
+
+  return x + 1;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [1, 1, 2]` → `i=1`: `1 > nums[0](1)`? no, skip → `i=2`: `2 > nums[0](1)`? yes → `x=1, nums[1]=2` → returns `x+1=2`, `nums[0..1] = [1, 2]` ✓
+- `nums = [0,0,1,1,1,2,2,3,3,4]` → traced in step 3 → `x=4` → returns `5`, `nums[0..4]=[0,1,2,3,4]` ✓
+- `nums = [1]` → loop doesn't run (`i` starts at 1, `nums.length` is 1) → returns `x+1=1`, `nums[0]=1` ✓
+- `nums = [1, 1, 1, 1]` → every `nums[i] === nums[x](1)`, never `>`, `x` stays `0` → returns `1`, `nums[0]=1` ✓
+
+## 8. Review and log
+
+- **Approach used:** slow/fast two-pointer in-place compaction, where the slow pointer `x` is the *index* of the last written unique value (not a separate count), relying on sorted order so `>` alone detects a new distinct value.
+- **Mistake to watch for:** using `!==` instead of `>` would also work here, but only because the array is sorted — on an unsorted array `>` would break (it'd miss smaller duplicates and misfire on smaller uniques), so the choice of comparator is tied directly to the sortedness assumption.
+- **Recurring pattern to log:** "unique-index pointer marks the write boundary, travel pointer scans and conditionally copies back" generalizes to in-place array compaction problems (remove element, move zeroes, dedupe with at-most-k duplicates).
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array with the travel pointer.
+- **Space:** `O(1)` — modifies the array in place with two index variables.
