@@ -1,0 +1,101 @@
+---
+title: Palindrome Number
+difficulty: Easy
+pattern: [Math, Two Pointers]
+date: 2026-09-04
+timeComplexity: O(log10 n)
+spaceComplexity: O(1)
+summary: Check whether an integer reads the same forwards and backwards without converting it to a string.
+---
+
+## 1. Restate the problem
+
+Write a function `isPalindrome(x)` that returns `true` if the integer `x` reads the same forwards and backwards, and `false` otherwise.
+
+- Negative numbers are never palindromes (the `-` sign breaks the mirror), so return `false` immediately for `x < 0`.
+- A single digit (`0`-`9`) is always a palindrome → return `true`.
+- The classic constraint on this problem: solve it **without converting the integer to a string**.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** a single integer `x`, positive, negative, or zero.
+- **Output:** a boolean.
+- **Constraints noted:**
+  - Negative numbers → always `false` (e.g. `-121`).
+  - Any number ending in `0` but not equal to `0` itself → always `false` (e.g. `10`), since a leading zero can't exist in the original number but the reversed one would produce it.
+  - Single digit numbers → always `true`.
+  - Numbers with an odd digit count (middle digit) must still compare correctly (e.g. `121`).
+
+## 3. Work a small example by hand
+
+`x = 1221`
+
+Build the reversed number by repeatedly peeling off the last digit and appending it to `reversed`:
+
+| remaining x | last digit | reversed |
+|-------------|------------|----------|
+| 1221        | 1          | 1        |
+| 122         | 2          | 12       |
+| 12          | 2          | 122      |
+| 1           | 1          | 1221     |
+
+`remaining x` reaches `0` when `reversed = 1221`, which equals the original `1221`, so the result is `true`.
+
+## 4. Brute force first
+
+Convert to a string, reverse it, and compare.
+
+```ts
+function isPalindromeBruteForce(x) {
+  if (x < 0) return false;
+  const str = String(x);
+  const reversed = str.split('').reverse().join('');
+  return str === reversed;
+}
+```
+
+- **Time:** `O(d)` where `d` is the number of digits, for the string reversal.
+- **Space:** `O(d)` for the string copies.
+
+Correct and simple, but the problem explicitly asks to avoid the string conversion, and it still allocates extra memory proportional to the digit count.
+
+## 5. Identify the pattern and optimize
+
+This is a **math / digit-extraction** problem, similar in spirit to "reverse an integer." Instead of building a full reversed copy via strings, use modulo (`% 10`) and integer division (`/ 10`) to peel digits off one at a time and reconstruct the reversed number arithmetically. To avoid overflow concerns on very large numbers, a further optimization only reverses **half** the digits and compares the two halves directly, stopping the loop once `x <= reversed`. This keeps the same `O(log10 n)` time (proportional to digit count) but cuts the work roughly in half and never needs a string.
+
+## 6. Code it
+
+```ts
+function isPalindrome(x: number): boolean {
+  if (x < 0 || (x % 10 === 0 && x !== 0)) {
+    return false;
+  }
+
+  let reversed = 0;
+  while (x > reversed) {
+    reversed = reversed * 10 + (x % 10);
+    x = Math.floor(x / 10);
+  }
+
+  return x === reversed || x === Math.floor(reversed / 10);
+}
+```
+
+## 7. Test it manually
+
+- `x = 121` → loop: `x=12,reversed=1` → `x=1,reversed=12` → loop stops (`x <= reversed`) → `x(1) === Math.floor(reversed/10)(1)` → `true` ✓
+- `x = -121` → `x < 0` → `false` ✓
+- `x = 10` → `10 % 10 === 0 && x !== 0` → `false` ✓
+- `x = 0` → `0 % 10 === 0` but `x === 0`, so guard doesn't trigger; loop never runs (`x > reversed` is `0 > 0`, false) → `x(0) === reversed(0)` → `true` ✓
+- `x = 1221` → traced pattern in step 3, half-reversal stops with `x=12, reversed=12` → `x === reversed` → `true` ✓
+
+## 8. Review and log
+
+- **Approach used:** digit extraction via modulo/division, reversing only half the number, the same family as "reverse integer" problems.
+- **Mistake to watch for:** forgetting the trailing-zero edge case (`x % 10 === 0 && x !== 0`) — without it, numbers like `10` or `100` would loop forever or give wrong comparisons since a valid number can't have a leading zero.
+- **Recurring pattern to log:** "peel digits with `% 10` / `/ 10`" generalizes to any problem that needs digit-by-digit numeric manipulation without string conversion (digit sum, reverse integer, digit count).
+
+## Complexity
+
+- **Time:** `O(log10 n)` — proportional to the number of digits, and roughly halved by only reversing the second half.
+- **Space:** `O(1)` — a single accumulator variable.

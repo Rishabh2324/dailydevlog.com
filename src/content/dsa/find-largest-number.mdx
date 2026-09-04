@@ -1,0 +1,103 @@
+---
+title: Find Largest Number in an Array
+difficulty: Easy
+pattern: [Arrays, Single Pass]
+date: 2026-09-04
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the largest number in an array in a single pass, handling empty input.
+---
+
+## 1. Restate the problem
+
+Write a function `findLargest(arr)` that returns the largest number in an array of numbers.
+
+- If the array is empty, that's invalid input — return `Array should have at least one number.`
+- Otherwise, return the maximum value found in the array.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of numbers, of any length.
+- **Output:** a number, or a fixed string for invalid input.
+- **Constraints noted:**
+  - Empty array → invalid, return the length message.
+  - Single-element array → return that element, e.g. `[5]` → `5`.
+  - All elements equal, e.g. `[4, 4, 4]` → `4`.
+  - Negative numbers are valid and should compare correctly, e.g. `[-3, -10, -1]` → `-1`.
+  - Order doesn't matter — the largest value can be anywhere in the array.
+
+## 3. Work a small example by hand
+
+`arr = [3, 9, 7, 1, 5]`
+
+Track `largest` while scanning left to right:
+
+| num | largest |
+|-----|---------|
+| 3   | 3       |
+| 9   | 9       |
+| 7   | 9       |
+| 1   | 9       |
+| 5   | 9       |
+
+Final `largest = 9`, which matches the expected output.
+
+## 4. Brute force first
+
+Sort a copy of the array descending, then take the element at index 0.
+
+```ts
+function findLargestBruteForce(arr) {
+  if (arr.length < 1) return 'Array should have at least one number.';
+  const sorted = [...arr].sort((a, b) => b - a);
+  return sorted[0];
+}
+```
+
+- **Time:** `O(n log n)` for the sort.
+- **Space:** `O(n)` for the sorted copy.
+
+Correct, but sorting the whole array is overkill when we only need the single maximum value.
+
+## 5. Identify the pattern and optimize
+
+This is a **single-pass tracking** problem, the mirror image of "find smallest": keep one running variable and update it whenever a larger value shows up. Instead of sorting everything (`O(n log n)`), track `largest` as we scan once (`O(n)`), updating it only when we see a strictly larger value. That closes the gap from `O(n log n)` / `O(n)` space down to `O(n)` time / `O(1)` space.
+
+## 6. Code it
+
+```ts
+function findLargest(arr) {
+  if (arr.length < 1) {
+    return 'Array should have at least one number.';
+  }
+
+  let largest = arr[0];
+
+  for (const num of arr) {
+    if (num > largest) {
+      largest = num;
+    }
+  }
+
+  return largest;
+}
+```
+
+## 7. Test it manually
+
+- `[3, 9, 7, 1, 5]` → traced in step 3 → `9` ✓
+- `[4, 4, 4]` → no `num > largest` ever triggers after the first → `largest` stays `4` → `4` ✓
+- `[]` → `arr.length < 1` → `Array should have at least one number.` ✓
+- `[5]` → `largest` starts at `5`, no larger value seen → `5` ✓
+- `[-3, -10, -1]` → `largest` starts at `-3`, then `-10` doesn't beat it, `-1 > -3` updates it to `-1` → `-1` ✓
+
+## 8. Review and log
+
+- **Approach used:** single-pass tracking (running maximum), the mirror of "find smallest" and part of the same running-state family as [find-smallest-number](/dsa/find-smallest-number) and [second-largest](/dsa/second-largest).
+- **Mistake to watch for:** initializing `largest` to `-Infinity` and skipping the empty-array check would silently return `-Infinity` instead of the required error message — always validate length first, and prefer `arr[0]` as the seed since it's guaranteed to be a real element.
+- **Recurring pattern to log:** "track a single running extreme in one pass" generalizes to tracking multiple extremes (min and max together, top-k) with a few extra variables instead of a full sort.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array.
+- **Space:** `O(1)` — one extra variable regardless of input size.

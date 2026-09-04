@@ -1,0 +1,103 @@
+---
+title: Find Smallest Number in an Array
+difficulty: Easy
+pattern: [Arrays, Single Pass]
+date: 2026-09-04
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the smallest number in an array in a single pass, handling empty input.
+---
+
+## 1. Restate the problem
+
+Write a function `findSmallest(arr)` that returns the smallest number in an array of numbers.
+
+- If the array is empty, that's invalid input — return `Array should have at least one number.`
+- Otherwise, return the minimum value found in the array.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of numbers, of any length.
+- **Output:** a number, or a fixed string for invalid input.
+- **Constraints noted:**
+  - Empty array → invalid, return the length message.
+  - Single-element array → return that element, e.g. `[5]` → `5`.
+  - All elements equal, e.g. `[4, 4, 4]` → `4`.
+  - Negative numbers are valid and should compare correctly, e.g. `[-3, -10, -1]` → `-10`.
+  - Order doesn't matter — the smallest value can be anywhere in the array.
+
+## 3. Work a small example by hand
+
+`arr = [9, 3, 7, 1, 5]`
+
+Track `smallest` while scanning left to right:
+
+| num | smallest |
+|-----|----------|
+| 9   | 9        |
+| 3   | 3        |
+| 7   | 3        |
+| 1   | 1        |
+| 5   | 1        |
+
+Final `smallest = 1`, which matches the expected output.
+
+## 4. Brute force first
+
+Sort a copy of the array ascending, then take the element at index 0.
+
+```ts
+function findSmallestBruteForce(arr) {
+  if (arr.length < 1) return 'Array should have at least one number.';
+  const sorted = [...arr].sort((a, b) => a - b);
+  return sorted[0];
+}
+```
+
+- **Time:** `O(n log n)` for the sort.
+- **Space:** `O(n)` for the sorted copy.
+
+Correct, but sorting the whole array is overkill when we only need the single minimum value.
+
+## 5. Identify the pattern and optimize
+
+This is a **single-pass tracking** problem, the mirror image of "find max": keep one running variable and update it whenever a smaller value shows up. Instead of sorting everything (`O(n log n)`), track `smallest` as we scan once (`O(n)`), updating it only when we see a strictly smaller value. That closes the gap from `O(n log n)` / `O(n)` space down to `O(n)` time / `O(1)` space.
+
+## 6. Code it
+
+```ts
+function findSmallest(arr) {
+  if (arr.length < 1) {
+    return 'Array should have at least one number.';
+  }
+
+  let smallest = arr[0];
+
+  for (const num of arr) {
+    if (num < smallest) {
+      smallest = num;
+    }
+  }
+
+  return smallest;
+}
+```
+
+## 7. Test it manually
+
+- `[9, 3, 7, 1, 5]` → traced in step 3 → `1` ✓
+- `[4, 4, 4]` → no `num < smallest` ever triggers after the first → `smallest` stays `4` → `4` ✓
+- `[]` → `arr.length < 1` → `Array should have at least one number.` ✓
+- `[5]` → `smallest` starts at `5`, no smaller value seen → `5` ✓
+- `[-3, -10, -1]` → `smallest` starts at `-3`, then `-10 < -3` updates it to `-10`, `-1` doesn't beat it → `-10` ✓
+
+## 8. Review and log
+
+- **Approach used:** single-pass tracking (running minimum), the mirror of "find max" and part of the same running-state family as [second-largest](/dsa/second-largest).
+- **Mistake to watch for:** initializing `smallest` to `Infinity` and skipping the empty-array check would silently return `Infinity` instead of the required error message — always validate length first.
+- **Recurring pattern to log:** "track a single running extreme in one pass" generalizes to tracking multiple extremes (top-k, min and max together) with a few extra variables instead of a full sort.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array.
+- **Space:** `O(1)` — one extra variable regardless of input size.

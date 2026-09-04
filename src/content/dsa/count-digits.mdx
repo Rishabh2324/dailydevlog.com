@@ -1,0 +1,101 @@
+---
+title: Count Digits in a Number
+difficulty: Easy
+pattern: [Math, Single Pass]
+date: 2026-09-04
+timeComplexity: O(log n)
+spaceComplexity: O(1)
+summary: Count how many digits a number has by repeatedly dividing by 10, without converting to a string.
+---
+
+## 1. Restate the problem
+
+Write a function `countDigits(n)` that returns the number of digits in an integer `n`.
+
+- `n` can be negative; the sign doesn't count as a digit.
+- `0` has exactly one digit — return `1`.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** a single integer, positive, negative, or zero.
+- **Output:** a positive integer count of digits.
+- **Constraints noted:**
+  - `n = 0` → `1` (not `0`, since `0` is still one digit).
+  - Negative numbers, e.g. `n = -123` → `3` (the minus sign isn't a digit).
+  - Single-digit numbers, e.g. `n = 7` → `1`.
+  - Large numbers, e.g. `n = 100000` → `6`.
+
+## 3. Work a small example by hand
+
+`n = 4205`
+
+Repeatedly strip the last digit (integer-divide by 10) and count iterations:
+
+| step | n    | count |
+|------|------|-------|
+| 0    | 4205 | 0     |
+| 1    | 420  | 1     |
+| 2    | 42   | 2     |
+| 3    | 4    | 3     |
+| 4    | 0    | 4     |
+
+Loop stops when `n` reaches `0`. Final `count = 4`, which matches the expected output.
+
+## 4. Brute force first
+
+Convert the number to a string and measure its length, stripping a leading minus sign for negatives.
+
+```ts
+function countDigitsBruteForce(n) {
+  const digits = Math.abs(n).toString();
+  return digits.length;
+}
+```
+
+- **Time:** `O(log n)` — string conversion still has to produce one character per digit.
+- **Space:** `O(log n)` — the string itself holds one character per digit.
+
+Correct and simple, but it leans on string conversion instead of doing the counting arithmetically, and allocates a string just to measure its length.
+
+## 5. Identify the pattern and optimize
+
+This is a **single-pass tracking** problem over the number's magnitude rather than an array: repeatedly divide by 10 (discarding the remainder) until nothing is left, counting each division. Since dividing by 10 removes exactly one digit per step, the loop runs `O(log₁₀ n)` times — same asymptotic cost as the string approach, but `O(1)` space since no string is ever built.
+
+## 6. Code it
+
+```ts
+function countDigits(n) {
+  n = Math.abs(n);
+
+  if (n === 0) {
+    return 1;
+  }
+
+  let count = 0;
+  while (n > 0) {
+    n = Math.floor(n / 10);
+    count++;
+  }
+
+  return count;
+}
+```
+
+## 7. Test it manually
+
+- `4205` → traced in step 3 → `4` ✓
+- `0` → hits the `n === 0` guard directly → `1` ✓
+- `-123` → `Math.abs(-123) = 123` → strips to `12`, `1`, `0` → `3` ✓
+- `7` → `Math.abs(7) = 7` → strips to `0` in one step → `1` ✓
+- `100000` → strips `10000, 1000, 100, 10, 1, 0` → `6` ✓
+
+## 8. Review and log
+
+- **Approach used:** single-pass tracking via repeated integer division, the arithmetic sibling of scanning an array once.
+- **Mistake to watch for:** forgetting the `n === 0` special case — the `while (n > 0)` loop never runs for `n = 0`, so without the guard it would return `0` instead of the correct `1`.
+- **Recurring pattern to log:** "peel off one unit per iteration and count" generalizes to other digit-by-digit problems (digit sum, reversing a number, checking palindromic numbers) without ever needing a string conversion.
+
+## Complexity
+
+- **Time:** `O(log n)` — one iteration per digit.
+- **Space:** `O(1)` — a single counter and no string allocation.
