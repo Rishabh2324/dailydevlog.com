@@ -1,0 +1,113 @@
+---
+title: Single Number
+difficulty: Easy
+pattern: [Arrays, Bit Manipulation]
+date: 2026-09-05
+problemUrl: https://leetcode.com/problems/single-number/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the one element that appears once while every other appears twice by XOR-ing the whole array, letting matching pairs cancel to zero.
+---
+
+## 1. Restate the problem
+
+You're given a non-empty array of integers `nums` where every element appears exactly **twice** except for one element which appears exactly **once**. Find and return that single element. The solution must run in linear time and use only constant extra space.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of integers `nums`, length `1 <= nums.length <= 3 * 10^4`, values in `-3 * 10^4 <= nums[i] <= 3 * 10^4`.
+- **Output:** the single integer that appears exactly once.
+- **Constraints noted:**
+  - Every value except one appears exactly twice — no triples, no values appearing more than twice.
+  - Array is unsorted — order is arbitrary.
+  - Must run in `O(n)` time and `O(1)` space — rules out anything that needs a full auxiliary structure sized to the input.
+  - Smallest case: `nums = [x]` → the single element itself, since there's nothing to pair against.
+  - Negative numbers are valid and must be handled like any other value.
+
+## 3. Work a small example by hand
+
+`nums = [4, 1, 2, 1, 2]`
+
+**Frequency approach** — count occurrences of each value, return the one with count `1`:
+
+| value | count |
+|-------|-------|
+| 4     | 1     |
+| 1     | 2     |
+| 2     | 2     |
+
+Scanning the map for the entry with count `1` gives `4`, matching the expected output.
+
+**XOR approach** — XOR every element together, tracking a running result:
+
+| step | num | result (running XOR) |
+|------|-----|------------------------|
+| start| -   | 0                       |
+| 1    | 4   | 0 ^ 4 = 4               |
+| 2    | 1   | 4 ^ 1 = 5               |
+| 3    | 2   | 5 ^ 2 = 7               |
+| 4    | 1   | 7 ^ 1 = 6               |
+| 5    | 2   | 6 ^ 2 = 4               |
+
+Final result `4` — same answer, because XOR-ing each duplicate pair together cancels it out (`a ^ a = 0`), leaving only the unpaired value.
+
+## 4. Approach 1 — frequency counting
+
+Count how many times each value appears using a hash map, then return the key with count `1`.
+
+```ts
+function singleNumberFrequency(nums: number[]): number {
+  const counts = new Map<number, number>();
+
+  for (const num of nums) {
+    counts.set(num, (counts.get(num) ?? 0) + 1);
+  }
+
+  for (const [num, count] of counts) {
+    if (count === 1) {
+      return num;
+    }
+  }
+
+  return -1; // unreachable given problem guarantees
+}
+```
+
+- **Time:** `O(n)` — one pass to build the map, one pass to scan it.
+- **Space:** `O(n)` — the map can hold up to `n / 2` distinct keys in the worst case, which violates the problem's `O(1)` space requirement even though the time complexity is fine.
+
+## 5. Approach 2 — bitwise XOR (optimal)
+
+XOR has two properties that make it perfect here: `a ^ a = 0` (a value XOR'd with itself cancels out) and `a ^ 0 = a` (XOR with zero is a no-op), and XOR is commutative/associative so order doesn't matter. XOR-ing every element in the array together means every value that appears twice cancels itself out, and whatever survives is exactly the single unpaired value — no map, no counting, just one running variable updated in a single pass. This meets both the `O(n)` time and `O(1)` space requirements that the frequency approach couldn't satisfy simultaneously.
+
+## 6. Code it
+
+```ts
+function singleNumber(nums: number[]): number {
+  let result = 0;
+
+  for (const num of nums) {
+    result ^= num;
+  }
+
+  return result;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [4, 1, 2, 1, 2]` → traced in step 3 → `result = 4` ✓
+- `nums = [2, 2, 1]` → `0^2=2`, `2^2=0`, `0^1=1` → returns `1` ✓
+- `nums = [1]` → single element, loop runs once → `0^1=1` → returns `1` ✓
+- `nums = [-1, -1, 5]` → bitwise XOR works identically on negative numbers via two's complement representation → `0^-1=-1`, `-1^-1=0`, `0^5=5` → returns `5` ✓
+
+## 8. Review and log
+
+- **Approach used:** bitwise XOR reduction — XOR the entire array into one running value, letting every duplicate pair cancel to `0` and leaving only the unpaired element.
+- **Mistake to watch for:** the frequency-map approach is correct and easy to reach for first, but it silently violates the stated `O(1)` space constraint — worth explicitly checking a problem's space requirement before settling on a hash-map solution, not just its time complexity.
+- **Recurring pattern to log:** "XOR cancels matching pairs, leaving the odd one out" generalizes to variants like "single number II/III" (multiple singles, or one appearing a different fixed number of times), and is the same cancellation idea used in the XOR variant of the missing-number problem.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the array, one XOR operation per element.
+- **Space:** `O(1)` — a single running variable, no auxiliary structures.

@@ -1,0 +1,129 @@
+---
+title: Merge Sorted Array
+difficulty: Easy
+pattern: [Arrays, Two Pointers]
+date: 2026-09-05
+problemUrl: https://leetcode.com/problems/merge-sorted-array/
+timeComplexity: O(m + n)
+spaceComplexity: O(1)
+summary: Merge two sorted arrays into the first one in place by filling from the back with two pointers, avoiding any extra shifting or copying.
+---
+
+## 1. Restate the problem
+
+You're given two sorted integer arrays `nums1` and `nums2`, with `nums1` having length `m + n` — the first `m` elements are the real values and the last `n` elements are `0`s acting as padding for `nums2`'s values. Merge `nums2` into `nums1` **in place** so the result is a single sorted array of length `m + n`, stored inside `nums1`.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `nums1` of length `m + n` (first `m` entries valid, sorted; rest are placeholder `0`s), integer `m`; `nums2` of length `n`, sorted; integer `n`.
+- **Output:** none returned — `nums1` is modified in place to hold the merged, sorted result.
+- **Constraints noted:** `0 <= m, n <= 200`, `1 <= m + n <= 200`, values in range `-10^9 <= nums1[i], nums2[j] <= 10^9`.
+- **Edge cases:**
+  - `n = 0` → `nums2` empty → `nums1`'s first `m` elements are already the answer, nothing to merge.
+  - `m = 0` → `nums1`'s real portion is empty → the result is just `nums2` copied in.
+  - Duplicate values across both arrays, e.g. `nums1 = [2,2,3,0,0], nums2 = [2,2]`.
+  - All of `nums2`'s values smaller (or larger) than all of `nums1`'s real values.
+
+## 3. Work a small example by hand
+
+`nums1 = [1, 2, 3, 0, 0, 0], m = 3, nums2 = [2, 5, 6], n = 3`
+
+Using three pointers: `i = m - 1` (last real element of `nums1`), `j = n - 1` (last element of `nums2`), `k = m + n - 1` (last write slot), filling from the back with the larger of the two candidates:
+
+| i | j | k | nums1[i] | nums2[j] | write nums1[k] | nums1 so far           |
+|---|---|---|----------|----------|-----------------|-------------------------|
+| 2 | 2 | 5 | 3        | 6        | 6               | [1,2,3,0,0,6]          |
+| 2 | 1 | 4 | 3        | 5        | 5               | [1,2,3,0,5,6]          |
+| 2 | 0 | 3 | 3        | 2        | 3               | [1,2,3,3,5,6] (i→1)    |
+| 1 | 0 | 2 | 2        | 2        | 2 (from nums2)  | [1,2,2,3,5,6] (j→-1)   |
+
+`j < 0` now, so the loop stops (remaining `nums1` elements are already in place). Result: `[1, 2, 2, 3, 5, 6]`, matching the expected output.
+
+## 4. Three approaches
+
+### Approach 1 — join both arrays and sort
+
+Overwrite the padded tail of `nums1` with `nums2`'s values, then sort the whole thing.
+
+```ts
+function mergeSortAll(nums1: number[], m: number, nums2: number[], n: number): void {
+  for (let j = 0; j < n; j++) {
+    nums1[m + j] = nums2[j];
+  }
+  nums1.sort((a, b) => a - b);
+}
+```
+
+- **Time:** `O((m + n) log(m + n))` for the sort — ignores that both inputs are already sorted.
+- **Space:** `O(log(m + n))` to `O(m + n)` depending on the sort algorithm's internal stack/buffer.
+
+### Approach 2 — two pointers with a copy of `nums1`
+
+Copy the real portion of `nums1` aside, then merge forward from the start of both copies back into `nums1`, same idea as merging two linked lists.
+
+```ts
+function mergeCopyForward(nums1: number[], m: number, nums2: number[], n: number): void {
+  const nums1Copy = nums1.slice(0, m);
+  let i = 0; // pointer into nums1Copy
+  let j = 0; // pointer into nums2
+  let k = 0; // write pointer into nums1
+
+  while (i < m && j < n) {
+    nums1[k++] = nums1Copy[i] <= nums2[j] ? nums1Copy[i++] : nums2[j++];
+  }
+  while (i < m) nums1[k++] = nums1Copy[i++];
+  while (j < n) nums1[k++] = nums2[j++];
+}
+```
+
+- **Time:** `O(m + n)` — one linear merge pass.
+- **Space:** `O(m)` for the copy of `nums1`'s real portion — correct and linear, but not truly in-place.
+
+### Approach 3 — two pointers, reverse traversal (optimal)
+
+Fill `nums1` from the **back**, comparing the largest remaining candidates from each array. This avoids ever overwriting a `nums1` value before it's been read, so no copy is needed.
+
+- **Time:** `O(m + n)` — one linear pass.
+- **Space:** `O(1)` — no extra array, writes directly into `nums1`'s existing padded slots.
+
+This is the version worth optimizing toward: same time complexity as approach 2, but drops the `O(m)` copy entirely by exploiting the fact that `nums1` has trailing empty space and merging back-to-front never clobbers unread data.
+
+## 5. Identify the pattern and optimize
+
+This is a **two-pointer merge**, the core step of merge sort — but the twist is the in-place constraint. Merging forward (approach 2) is the natural instinct, but it requires reading from `nums1` positions that a forward merge would overwrite, forcing a copy. Flipping the direction — walking both arrays from their *ends* and writing into `nums1` from its end — sidesteps this: the padded slots at the back of `nums1` are exactly where the largest merged values belong, and by the time a slot in the "real" prefix of `nums1` gets overwritten, its original value has already been consumed by pointer `i`. This closes the gap from `O(m)` extra space down to `O(1)`.
+
+## 6. Code it
+
+```ts
+function merge(nums1: number[], m: number, nums2: number[], n: number): void {
+  let i = m - 1;
+  let j = n - 1;
+  let k = m + n - 1;
+
+  while (j >= 0) {
+    if (i >= 0 && nums1[i] > nums2[j]) {
+      nums1[k--] = nums1[i--];
+    } else {
+      nums1[k--] = nums2[j--];
+    }
+  }
+}
+```
+
+## 7. Test it manually
+
+- `nums1 = [1,2,3,0,0,0], m=3, nums2=[2,5,6], n=3` → traced in step 3 → `[1,2,2,3,5,6]` ✓
+- `nums1 = [1], m=1, nums2=[], n=0` → `j` starts at `-1`, loop never runs → `nums1` stays `[1]` ✓
+- `nums1 = [0], m=0, nums2=[1], n=1` → `i = -1` always fails the `nums1[i] > nums2[j]` check → every value comes from `nums2` → `nums1` becomes `[1]` ✓
+- `nums1 = [2,2,3,0,0], m=3, nums2=[2,2], n=2` → duplicates handled by `>` (not `>=`), so ties pull from `nums2` first without breaking order → result `[2,2,2,2,3]` ✓
+
+## 8. Review and log
+
+- **Approach used:** reverse two-pointer merge, filling `nums1` from the back to exploit its trailing padded space and avoid overwriting unread values.
+- **Mistake to watch for:** forgetting the `i >= 0` guard in the condition causes an out-of-bounds read once `nums1`'s real elements are exhausted; also, after the loop, any leftover `nums2` elements must still be copied (handled here since the `while (j >= 0)` loop keeps draining `nums2` even after `i` runs out) — but leftover `nums1` elements need no action since they're already in place.
+- **Recurring pattern to log:** "merge from the back when the destination has trailing free space" generalizes to any in-place merge into a pre-sized buffer, and complements the standard forward two-pointer merge used in merge sort.
+
+## Complexity
+
+- **Time:** `O(m + n)` — each element from both arrays is visited exactly once.
+- **Space:** `O(1)` — merges directly into `nums1`'s existing storage, no auxiliary array.

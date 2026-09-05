@@ -1,0 +1,98 @@
+---
+title: Missing Number
+difficulty: Easy
+pattern: [Arrays, Math]
+date: 2026-09-05
+problemUrl: https://leetcode.com/problems/missing-number/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the single missing number in a 0..n range array by subtracting its actual sum from the expected sum via Gauss's formula.
+---
+
+## 1. Restate the problem
+
+You're given an array `nums` containing `n` distinct numbers taken from the range `[0, n]`. Since the range `[0, n]` has `n + 1` numbers but the array only has `n` of them, exactly one number is missing. Return that missing number.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of integers `nums`, length `n` where `1 <= n <= 10^4`, each `nums[i]` distinct and in `[0, n]`.
+- **Output:** the single integer in `[0, n]` that does not appear in `nums`.
+- **Constraints noted:**
+  - `nums` is **not** sorted — order is arbitrary.
+  - All values distinct — no duplicates to worry about.
+  - The missing number could be `0` or `n` itself (either boundary), not just an interior value.
+  - Smallest case: `n = 1`, `nums = [0]` → missing is `1`; `nums = [1]` → missing is `0`.
+
+## 3. Work a small example by hand
+
+`nums = [3, 0, 1]` (so `n = 3`, full range is `[0, 3]`)
+
+Expected sum of `0..n` using Gauss's formula `n * (n + 1) / 2`:
+
+- `n = 3` → expected sum `= 3 * 4 / 2 = 6`
+
+Actual sum of the array:
+
+- `3 + 0 + 1 = 4`
+
+Missing number `= expected - actual = 6 - 4 = 2`, matching the expected output (`2` is indeed absent from `[3, 0, 1]`).
+
+## 4. Brute force first
+
+For each candidate in `[0, n]`, scan the array to check if it's present.
+
+```ts
+function missingNumberBruteForce(nums: number[]): number {
+  const n = nums.length;
+
+  for (let candidate = 0; candidate <= n; candidate++) {
+    if (!nums.includes(candidate)) {
+      return candidate;
+    }
+  }
+
+  return -1; // unreachable given problem guarantees
+}
+```
+
+- **Time:** `O(n^2)` — `includes` is `O(n)`, checked for up to `n + 1` candidates.
+- **Space:** `O(1)`, no extra structures used.
+
+## 5. Identify the pattern and optimize
+
+This is a **sum arithmetic** problem: since the numbers `[0, n]` form a known, fixed sequence, their total is computable directly with Gauss's formula `n * (n + 1) / 2` — no need to search for what's present. The missing number is simply the gap between that expected total and the array's actual sum, computed in a single pass. This replaces the `O(n^2)` membership-checking with one `O(n)` summation and a subtraction, dropping both the time complexity and the need for any extra lookup structure.
+
+## 6. Code it
+
+```ts
+function missingNumber(nums: number[]): number {
+  const n = nums.length;
+  const expectedSum = (n * (n + 1)) / 2;
+
+  let actualSum = 0;
+  for (const num of nums) {
+    actualSum += num;
+  }
+
+  return expectedSum - actualSum;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [3, 0, 1]` → traced in step 3 → `expectedSum = 6`, `actualSum = 4` → returns `2` ✓
+- `nums = [0, 1]` → `n = 2`, `expectedSum = 3`, `actualSum = 1` → returns `2` ✓
+- `nums = [9,6,4,2,3,5,7,0,1]` → `n = 9`, `expectedSum = 45`, `actualSum = 37` → returns `8` ✓
+- `nums = [0]` → `n = 1`, `expectedSum = 1`, `actualSum = 0` → returns `1` (missing is the upper boundary) ✓
+- `nums = [1]` → `n = 1`, `expectedSum = 1`, `actualSum = 1` → returns `0` (missing is the lower boundary) ✓
+
+## 8. Review and log
+
+- **Approach used:** sum arithmetic — compute the expected total of `0..n` with Gauss's formula, subtract the array's actual total, and the difference is the missing value.
+- **Mistake to watch for:** using `nums.length` for `n` is correct here (the array holds `n` elements from an `n+1`-sized range), but it's easy to accidentally use `nums.length - 1` by analogy with 0-indexing — double-check which quantity represents the *range's* upper bound versus the *array's* length.
+- **Recurring pattern to log:** "compare an expected closed-form total against an actual computed total" generalizes to finding a missing/duplicate element in a known sequence, and pairs well with the XOR-based variant of the same problem (XOR cancels matching pairs instead of summing).
+
+## Complexity
+
+- **Time:** `O(n)` — one pass to sum the array; the expected sum is computed in constant time via the formula.
+- **Space:** `O(1)` — only a couple of running totals, no extra data structures.
