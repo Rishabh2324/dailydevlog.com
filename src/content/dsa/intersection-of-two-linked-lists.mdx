@@ -1,0 +1,125 @@
+---
+title: Intersection of Two Linked Lists
+difficulty: Easy
+pattern: [Linked List, Two Pointers]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/intersection-of-two-linked-lists/
+timeComplexity: O(m + n)
+spaceComplexity: O(1)
+summary: Find the node where two singly linked lists intersect by walking two pointers that switch lists after reaching the end, aligning both to the intersection.
+---
+
+## 1. Restate the problem
+
+Given the heads of two singly linked lists, `headA` and `headB`, find the node at which the two lists intersect. If they don't intersect, return `null`. "Intersect" means the lists share the same node reference from some point onward (not just equal values) — after the intersection point, both lists follow the exact same chain of nodes to the end.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `headA` and `headB`, heads of two singly linked lists, with combined node counts up to `3 * 10^4`.
+- **Output:** the shared intersecting node (by reference), or `null` if the lists never intersect.
+- **Constraints noted:**
+  - The lists must not be modified — no altering `next` pointers to "mark" a path.
+  - Intersection is by node reference, not value — two nodes with the same value that aren't actually the same object don't count.
+  - Lists can have different lengths before the intersection point.
+  - No intersection at all → the two lists are structurally disjoint, both reaching `null` independently.
+  - Either list could be empty (`head = null`) → no possible intersection → `null`.
+
+## 3. Work a small example by hand
+
+```
+List A:  4 -> 1 -\
+                   8 -> 4 -> 5 -> null
+List B:  5 -> 6 -> 1 -/
+```
+
+`A` has length `2` before the shared node `8`; `B` has length `3` before it. Total lengths: `A = 5` nodes, `B = 6` nodes.
+
+**Two-pointer switch trick** — walk `pA` down `A` then `B`, and `pB` down `B` then `A`; both traverse a combined path of the same total length (`lenA + lenB`), so they arrive at the intersection simultaneously:
+
+| step | pA (walks A, then B)      | pB (walks B, then A)         |
+|------|-----------------------------|---------------------------------|
+| 0    | 4 (A)                       | 5 (B)                           |
+| 1    | 1 (A)                       | 6 (B)                           |
+| 2    | 8 (A, shared)               | 1 (B)                           |
+| 3    | 4 (A, shared)               | 8 (B, shared — **switch point isn't here, B continues**) |
+| 4    | 5 (A, shared)               | 4 (shared)                      |
+| 5    | null → switch to B, pA=5(B) | 5 (shared)                      |
+| 6    | 6 (B)                       | null → switch to A, pB=4(A)     |
+| 7    | 1 (B)                       | 1 (A)                           |
+| 8    | 8 (B, shared) → **pA === pB** | 8 (A, shared) → **pA === pB** |
+
+Both pointers meet at node `8` — the true intersection — because switching lists exactly once equalizes the total distance each pointer travels before reaching it: `pA` travels `lenA + lenB_prefix`, `pB` travels `lenB + lenA_prefix`, and both sums equal the same total.
+
+## 4. Brute force first
+
+For every node in `A`, scan the entirety of `B` to see if it appears (by reference).
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function getIntersectionNodeBruteForce(
+  headA: ListNode | null,
+  headB: ListNode | null
+): ListNode | null {
+  for (let nodeA = headA; nodeA !== null; nodeA = nodeA.next) {
+    for (let nodeB = headB; nodeB !== null; nodeB = nodeB.next) {
+      if (nodeA === nodeB) {
+        return nodeA;
+      }
+    }
+  }
+  return null;
+}
+```
+
+- **Time:** `O(m * n)` — nested scan of every node in `A` against every node in `B`.
+- **Space:** `O(1)`, no extra structures — but the quadratic time is too slow for the input size.
+
+## 5. Identify the pattern and optimize
+
+A faster middle ground is a **hash set**: walk `A` once, storing every node reference in a set, then walk `B` and return the first node found in that set — `O(m + n)` time, `O(m)` space. But the fully optimal solution needs no extra space at all, using a **two-pointer length-equalizing trick**: if both pointers, upon reaching the end of their own list, switch to the *other* list's head, then both pointers end up traveling the exact same total distance (`lenA + lenB`) by the time they'd reach the intersection — so they arrive there simultaneously, regardless of how unequal the two lists' lengths were originally. No length pre-computation, no hash set — just two pointers and a conditional "switch lists" step, giving `O(m + n)` time and `O(1)` space.
+
+## 6. Code it
+
+```ts
+function getIntersectionNode(
+  headA: ListNode | null,
+  headB: ListNode | null
+): ListNode | null {
+  if (headA === null || headB === null) return null;
+
+  let pA: ListNode | null = headA;
+  let pB: ListNode | null = headB;
+
+  while (pA !== pB) {
+    pA = pA === null ? headB : pA.next;
+    pB = pB === null ? headA : pB.next;
+  }
+
+  return pA; // either the intersection node, or null if no intersection
+}
+```
+
+## 7. Test it manually
+
+- `A = 4->1->8->4->5`, `B = 5->6->1->8->4->5` (shared tail from `8`) → traced in step 3 → both pointers meet at node `8` ✓
+- Disjoint lists, e.g. `A = 2->6->4`, `B = 1->5` → `pA` walks `A` then `B` (`2,6,4,null→1,5`), `pB` walks `B` then `A` (`1,5,null→2,6,4`) → both reach `null` at the same step (after traveling `lenA + lenB` each) and `pA === pB === null` → returns `null` ✓
+- `headA = null` → returns `null` immediately (guard clause) ✓
+- Lists of equal length that intersect immediately at the head, e.g. `A = B = 1->2->3` → `pA` and `pB` are equal from the very first comparison → returns the shared head node ✓
+
+## 8. Review and log
+
+- **Approach used:** two-pointer length equalization — each pointer walks its own list then switches to the other's head, so both cover the same total distance by the time they'd hit the intersection (or both hit `null` together if there's none).
+- **Mistake to watch for:** comparing node *values* instead of node *references* (`pA.val === pB.val` instead of `pA === pB`) would false-positive on coincidentally equal values from non-intersecting lists — the comparison must always be by identity.
+- **Recurring pattern to log:** "equalize two paths of different lengths by having each traverse both, once each" is a neat trick specific to this kind of alignment problem — distinct from slow/fast pointers, but still in the broader two-pointer family used across linked list problems.
+
+## Complexity
+
+- **Time:** `O(m + n)` — each pointer traverses at most one full pass of both lists combined.
+- **Space:** `O(1)` — only two pointer variables, no extra data structures.

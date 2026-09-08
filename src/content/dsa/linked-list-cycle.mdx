@@ -1,0 +1,146 @@
+---
+title: Linked List Cycle
+difficulty: Easy
+pattern: [Linked List, Two Pointers, Hash Table]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/linked-list-cycle/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Detect whether a linked list has a cycle using either a hash set of visited nodes or Floyd's slow/fast pointer technique.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a linked list, determine if the list has a cycle in it — meaning some node's `next` pointer, followed repeatedly, eventually leads back to a node already visited, rather than reaching `null`. Return `true` if a cycle exists, `false` otherwise.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[0, 10^4]`. (LeetCode's internal `pos` parameter marks where the tail connects back to, but that's not part of the actual function input.)
+- **Output:** a boolean — `true` if a cycle exists anywhere in the list, `false` if it terminates in `null`.
+- **Constraints noted:**
+  - Empty list (`head = null`) → no cycle → `false`.
+  - Single node pointing to itself (`node.next = node`) → cycle → `true`.
+  - Single node with `next = null` → no cycle → `false`.
+  - The cycle doesn't have to start at the head — it can begin anywhere partway through the list, with a non-cyclic "tail" leading into it.
+  - Must not mutate the list's structure to detect the cycle (marking nodes by modifying them isn't allowed/desirable).
+
+## 3. Work a small example by hand
+
+`3 -> 2 -> 0 -> -4 -> (back to 2)` — a cycle starting at the node with value `2`.
+
+**Hash table approach** — visit each node, adding it to a `Set`; if a node is already in the set, a cycle exists.
+
+| step | current node | in visited set already? | action |
+|------|---------------|---------------------------|--------|
+| 1    | 3             | no                        | add `3` to set |
+| 2    | 2             | no                        | add `2` to set |
+| 3    | 0             | no                        | add `0` to set |
+| 4    | -4            | no                        | add `-4` to set |
+| 5    | 2 (again)     | **yes**                   | cycle detected → return `true` |
+
+**Floyd's algorithm (slow/fast pointers)** — `slow` moves one step, `fast` moves two steps; if they ever meet, there's a cycle.
+
+| step | slow | fast |
+|------|------|------|
+| start| 3    | 3    |
+| 1    | 2    | 0    |
+| 2    | 0    | -4   |
+| 3    | -4   | 0    |
+| 4    | 2    | -4   |
+| 5    | 0    | 2    |
+| 6    | -4   | 0    |
+| 7    | 2    | -4   |
+
+Because both pointers are trapped inside the cycle, `fast` keeps closing the gap on `slow` by one node per step (relative speed of `1`) and will eventually land on the same node as `slow` — here that happens a few steps in (the exact meeting point depends on the cycle's length and entry point, but it's guaranteed to happen). Once `slow === fast`, return `true`.
+
+## 4. Approach 1 — hash table
+
+Track every node visited in a `Set`; if the traversal ever revisits a node already in the set, that node was reached twice — meaning a cycle exists. If traversal reaches `null`, there's no cycle.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function hasCycleHashSet(head: ListNode | null): boolean {
+  const visited = new Set<ListNode>();
+
+  let curr = head;
+  while (curr !== null) {
+    if (visited.has(curr)) {
+      return true;
+    }
+    visited.add(curr);
+    curr = curr.next;
+  }
+
+  return false;
+}
+```
+
+- **Time:** `O(n)` — each node visited once, with `O(1)` average set lookups/inserts.
+- **Space:** `O(n)` — the set can grow to hold every node in the list before a cycle (if any) is found, which is the main drawback versus Floyd's approach.
+
+## 5. Approach 2 — Floyd's cycle detection (optimal)
+
+Also called the "tortoise and hare" algorithm: use two pointers, `slow` (one step at a time) and `fast` (two steps at a time). If there's no cycle, `fast` reaches `null` first and the loop ends normally. If there **is** a cycle, both pointers eventually end up trapped inside it, and because `fast` gains exactly one node of relative distance on `slow` per iteration, it's mathematically guaranteed to eventually land exactly on `slow`'s node — at which point a cycle is confirmed. This achieves the same `O(n)` time as the hash-set approach but drops space from `O(n)` down to `O(1)`, since no auxiliary structure is needed — just two pointer variables.
+
+```ts
+function hasCycle(head: ListNode | null): boolean {
+  let slow = head;
+  let fast = head;
+
+  while (fast !== null && fast.next !== null) {
+    slow = slow!.next;
+    fast = fast.next.next;
+
+    if (slow === fast) {
+      return true;
+    }
+  }
+
+  return false;
+}
+```
+
+## 6. Code it
+
+```ts
+function hasCycle(head: ListNode | null): boolean {
+  let slow = head;
+  let fast = head;
+
+  while (fast !== null && fast.next !== null) {
+    slow = slow!.next;
+    fast = fast.next.next;
+
+    if (slow === fast) {
+      return true;
+    }
+  }
+
+  return false;
+}
+```
+
+## 7. Test it manually
+
+- `3 -> 2 -> 0 -> -4 -> (back to 2)` → traced in step 3 → both approaches return `true` ✓
+- `head = null` → `fast === null` immediately, loop never runs → returns `false` ✓ (hash-set version: `curr === null` immediately, same result)
+- `1 -> 2 -> null` (no cycle) → `slow`/`fast` advance until `fast.next === null`, loop ends without ever matching → returns `false` ✓
+- single node with `next = node itself` → `fast = head`, `fast.next = head` (itself) → first iteration: `slow = head.next = head`, `fast = head.next.next = head` → `slow === fast` → returns `true` ✓
+
+## 8. Review and log
+
+- **Approach used:** two solutions of matching time complexity — a hash set tracking visited nodes (simpler to reason about, but `O(n)` space), and Floyd's slow/fast pointer technique (same `O(n)` time, `O(1)` space).
+- **Mistake to watch for:** in the hash-set version, storing node *values* instead of node *references* would false-positive on lists with duplicate values but no actual cycle — always key on the node object itself. In Floyd's version, checking `slow === fast` *before* advancing both pointers on the first iteration would incorrectly report a cycle for any list (both start equal at `head`) — the comparison must happen only after each step.
+- **Recurring pattern to log:** hash-set "have I seen this before" generalizes to cycle detection in any graph-like structure; Floyd's slow/fast technique is the same core idea used in "middle of the linked list" and extends further (with extra pointer math) to finding the actual cycle's *starting node*, not just detecting its existence.
+
+## Complexity
+
+- **Time:** `O(n)` for both approaches — each node is visited a bounded number of times before a cycle is detected or the list ends.
+- **Space:** `O(n)` for the hash-set approach (worst case, one entry per node); `O(1)` for Floyd's approach — only two pointer variables regardless of list length.

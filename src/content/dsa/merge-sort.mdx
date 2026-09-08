@@ -1,0 +1,139 @@
+---
+title: Merge Sort
+difficulty: Medium
+pattern: [Divide and Conquer, Recursion, Sorting]
+date: 2026-09-08
+timeComplexity: O(n log n)
+spaceComplexity: O(n)
+summary: Sort an array by recursively splitting it in half down to single elements, then merging sorted halves back together on the way up.
+---
+
+## 1. Restate the problem
+
+Given an array of numbers, sort it in ascending order using the merge sort algorithm: recursively split the array into halves until each piece has one element (trivially sorted), then merge those pieces back together in sorted order, working back up the recursion.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** an array of comparable values (numbers here), any length `>= 0`.
+- **Output:** a new array (or the same array sorted in place, depending on implementation) with all elements in ascending order.
+- **Constraints noted:**
+  - Empty array (`length 0`) or single-element array → already sorted, nothing to do — this is the recursion's base case.
+  - Duplicate values must retain a valid relative order during merging (stability isn't required by the problem, but a naive `<=` comparison during merge keeps it stable).
+  - Works for both even and odd-length arrays — the midpoint split doesn't need to be exact halves.
+  - Already-sorted or reverse-sorted input should still take the full `O(n log n)` path, since merge sort doesn't short-circuit on pre-sorted runs.
+
+## 3. Work a small example by hand — recursion visualization
+
+`nums = [8, 3, 5, 1]`
+
+**Splitting phase (divide):** each call splits its array in half and recurses on both halves until arrays of length `<= 1` are reached.
+
+```
+                    [8, 3, 5, 1]
+                    /           \
+             [8, 3]               [5, 1]
+             /    \                /    \
+          [8]     [3]           [5]     [1]
+```
+
+Every leaf is a single-element array — already sorted by definition. This is the recursion bottoming out at the base case.
+
+**Merging phase (conquer):** each pair of sorted sub-arrays returned from the recursive calls gets merged back together, one level up at a time.
+
+```
+          [8]     [3]           [5]     [1]
+             \    /                \    /
+             [3, 8]               [1, 5]
+                    \           /
+                    [1, 3, 5, 8]
+```
+
+- Merge `[8]` and `[3]` → compare `8` vs `3`, take `3` first, then `8` → `[3, 8]`.
+- Merge `[5]` and `[1]` → compare `5` vs `1`, take `1` first, then `5` → `[1, 5]`.
+- Merge `[3, 8]` and `[1, 5]` → compare fronts repeatedly: `3` vs `1` → take `1`; `3` vs `5` → take `3`; `8` vs `5` → take `5`; only `8` left → take `8` → `[1, 3, 5, 8]`.
+
+Final result `[1, 3, 5, 8]`, matching the expected sorted output. Note the recursion tree has depth `log2(4) = 2`, and each of the 2 levels does `O(n)` total merge work — this is exactly where the `O(n log n)` complexity comes from.
+
+## 4. Brute force first
+
+A simple comparison-based sort like insertion sort, which shifts each element into its correct position among the already-sorted prefix.
+
+```ts
+function insertionSort(nums: number[]): number[] {
+  const result = [...nums];
+
+  for (let i = 1; i < result.length; i++) {
+    const current = result[i];
+    let j = i - 1;
+
+    while (j >= 0 && result[j] > current) {
+      result[j + 1] = result[j];
+      j--;
+    }
+    result[j + 1] = current;
+  }
+
+  return result;
+}
+```
+
+- **Time:** `O(n^2)` worst case — each insertion can require shifting up to `i` elements.
+- **Space:** `O(n)` for the copy (or `O(1)` if sorting in place), but the quadratic time is the real cost on large or reverse-sorted inputs.
+
+## 5. Identify the pattern and optimize
+
+This is the canonical **divide and conquer** pattern: break the problem into smaller subproblems of the same shape, solve them recursively (the "divide"), then combine their solutions (the "conquer"/merge step). The key insight that beats `O(n^2)`: merging two *already-sorted* arrays only takes `O(n)` — a single linear scan comparing fronts — rather than needing comparisons against every prior element. Since the array halves at each recursive level, there are `log2(n)` levels, and each level does `O(n)` total merge work across all its subproblems, giving `O(n log n)` overall — a real improvement over insertion sort's `O(n^2)` for large inputs.
+
+## 6. Code it
+
+```ts
+function mergeSort(nums: number[]): number[] {
+  if (nums.length <= 1) {
+    return nums;
+  }
+
+  const mid = Math.floor(nums.length / 2);
+  const left = mergeSort(nums.slice(0, mid));
+  const right = mergeSort(nums.slice(mid));
+
+  return merge(left, right);
+}
+
+function merge(left: number[], right: number[]): number[] {
+  const result: number[] = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < left.length && j < right.length) {
+    if (left[i] <= right[j]) {
+      result.push(left[i++]);
+    } else {
+      result.push(right[j++]);
+    }
+  }
+
+  while (i < left.length) result.push(left[i++]);
+  while (j < right.length) result.push(right[j++]);
+
+  return result;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [8, 3, 5, 1]` → traced in step 3 → `[1, 3, 5, 8]` ✓
+- `nums = []` → `nums.length <= 1` is true immediately → returns `[]` ✓
+- `nums = [7]` → base case, single element → returns `[7]` unchanged ✓
+- `nums = [2, 2, 1]` → splits into `[2]`/`[2, 1]`; `[2,1]` splits into `[2]`/`[1]` → merges to `[1, 2]` → final merge of `[2]` and `[1, 2]`: `2` vs `1` → take `1`; `2` vs `2` → `left[i] <= right[j]` takes left's `2` first, then right's `2` → `[1, 2, 2]` ✓ (duplicates preserved, order stable)
+- `nums = [5, 4, 3, 2, 1]` (reverse sorted) → still fully recurses and merges level by level → `[1, 2, 3, 4, 5]` ✓
+
+## 8. Review and log
+
+- **Approach used:** divide and conquer via recursion — split the array in half until single elements remain, then merge sorted pairs back together bottom-up.
+- **Mistake to watch for:** using `<` instead of `<=` in the merge comparison breaks stability for duplicate values (it would take from `right` first on a tie, reversing their original relative order); also, forgetting the base case (`length <= 1`) causes infinite recursion since `slice` on an empty or single-element array never shrinks further.
+- **Recurring pattern to log:** "split into halves, recurse, then combine sorted results in linear time" is the same shape as quicksort (partition instead of merge), and the merge step itself — comparing fronts of two sorted sequences — reappears directly in "merge sorted array" and "merge two sorted lists."
+
+## Complexity
+
+- **Time:** `O(n log n)` — `log n` levels of recursion, each doing `O(n)` total merge work.
+- **Space:** `O(n)` — the merge step allocates new arrays at every level; recursion stack adds `O(log n)` on top.

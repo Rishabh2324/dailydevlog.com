@@ -1,0 +1,155 @@
+---
+title: Palindrome Linked List
+difficulty: Easy
+pattern: [Linked List, Two Pointers]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/palindrome-linked-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Check if a linked list reads the same forwards and backwards by finding its middle, reversing the second half in place, and comparing both halves.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a singly linked list, determine whether it's a palindrome — the sequence of values reads the same forwards and backwards.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[1, 10^5]`.
+- **Output:** a boolean — `true` if the list's values form a palindrome, `false` otherwise.
+- **Constraints noted:**
+  - Single-node list → trivially a palindrome → `true`.
+  - Even-length list, e.g. `1->2->2->1` → both halves must mirror exactly.
+  - Odd-length list, e.g. `1->2->3->2->1` → the true middle element doesn't need a mirror partner.
+  - Not a palindrome, e.g. `1->2` → `1 !== 2` → `false`.
+  - The optimal solution should use `O(1)` extra space — ruling out a plain "copy to array and check" as the final answer, though it's a fine starting point.
+
+## 3. Work a small example by hand
+
+`1 -> 2 -> 2 -> 1 -> null`
+
+**Step 1 — find the middle** using slow/fast pointers (same technique as "middle of the linked list"):
+
+| step | slow | fast |
+|------|------|------|
+| start| 1    | 1    |
+| 1    | 2 (1st) | 2 (2nd) |
+| 2    | 2 (2nd) | null (fast.next was null) |
+
+`fast` becomes `null` (even-length list), so `slow` lands on the start of the second half: the second `2`.
+
+```
+1 -> 2 -> 2 -> 1 -> null
+          ^slow (start of second half)
+```
+
+**Step 2 — reverse the second half** (`2 -> 1 -> null`) in place, using the standard iterative reversal:
+
+```
+before:  2 -> 1 -> null
+after:   1 -> 2 -> null   (reversed; this is now the head of the second half)
+```
+
+List now looks like two separate chains: first half `1 -> 2 -> null` (still linked from `head`, though its original tail now points into the reversed section — the walk below only follows the two halves independently) and reversed second half `1 -> 2 -> null`.
+
+**Step 3 — compare both halves node by node:**
+
+| first half | second half (reversed) | equal? |
+|------------|--------------------------|--------|
+| 1          | 1                        | yes    |
+| 2          | 2                        | yes    |
+
+Both halves exhausted with no mismatch → palindrome → `true`, matching the expected output.
+
+## 4. Brute force first
+
+Copy every value into an array, then check it reads the same forwards and backwards with a two-pointer scan (or by comparing against its reverse).
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function isPalindromeBruteForce(head: ListNode | null): boolean {
+  const values: number[] = [];
+  for (let curr = head; curr !== null; curr = curr.next) {
+    values.push(curr.val);
+  }
+
+  let left = 0;
+  let right = values.length - 1;
+  while (left < right) {
+    if (values[left] !== values[right]) return false;
+    left++;
+    right--;
+  }
+
+  return true;
+}
+```
+
+- **Time:** `O(n)` — one pass to copy, one pass (half-length) to compare.
+- **Space:** `O(n)` for the `values` array — the list's own nodes already hold this data, so copying it is unnecessary extra storage.
+
+## 5. Identify the pattern and optimize
+
+This combines two techniques already useful individually: **slow/fast pointers** to find the middle without a length pre-pass, and **in-place list reversal** to flip the second half. Once the second half is reversed, comparing the first half against it is just a synchronized walk of two pointers — no array needed, since the reversed second half itself now serves as the "read backwards" view of that portion of the list. This drops space from `O(n)` down to `O(1)`, at the cost of temporarily mutating the list's structure (which can optionally be reversed back afterward to restore the original list, if that matters for the caller).
+
+## 6. Code it
+
+```ts
+function isPalindrome(head: ListNode | null): boolean {
+  if (head === null || head.next === null) return true;
+
+  // find the start of the second half
+  let slow = head;
+  let fast = head;
+  while (fast.next !== null && fast.next.next !== null) {
+    slow = slow.next!;
+    fast = fast.next.next;
+  }
+
+  // reverse the second half in place
+  let prev: ListNode | null = null;
+  let curr: ListNode | null = slow.next;
+  while (curr !== null) {
+    const next = curr.next;
+    curr.next = prev;
+    prev = curr;
+    curr = next;
+  }
+
+  // compare first half against reversed second half
+  let left: ListNode | null = head;
+  let right: ListNode | null = prev;
+  while (right !== null) {
+    if (left!.val !== right.val) return false;
+    left = left!.next;
+    right = right.next;
+  }
+
+  return true;
+}
+```
+
+## 7. Test it manually
+
+- `1 -> 2 -> 2 -> 1` → traced in step 3 → `true` ✓
+- `1 -> 2 -> 3 -> 2 -> 1` (odd length) → `slow`/`fast` land with `slow` on the middle `3`; reversing `slow.next` (`2 -> 1`) gives `1 -> 2`; comparing `left` (`1,2`) against `right` (`1,2`) — the middle `3` is correctly excluded from comparison since reversal starts at `slow.next`, not `slow` → `true` ✓
+- `head = [7]` (single node) → `head.next === null` → returns `true` immediately ✓
+- `1 -> 2` → `slow`/`fast` loop condition fails immediately (`fast.next.next` would be `null`, so `1 !== 2` is checked): `slow` stays at `1`, reverse `slow.next` (`[2]`) → still `[2]`; compare `left=1` vs `right=2` → mismatch → `false` ✓
+
+## 8. Review and log
+
+- **Approach used:** slow/fast pointers to locate the second half's start, in-place reversal of that half, then a synchronized two-pointer comparison against the first half.
+- **Mistake to watch for:** the middle-finding loop condition here is `fast.next !== null && fast.next.next !== null` (checking one node ahead of the usual "middle of linked list" pattern) so that `slow` lands *right before* the second half rather than on the exact middle — using the wrong loop condition throws off which node reversal should start from, especially for odd-length lists where the middle must be excluded from comparison.
+- **Recurring pattern to log:** this problem is a direct composition of two prior patterns — "middle of the linked list" (slow/fast) and "reverse linked list" (three-pointer in-place reversal) — a good reminder that many "harder" problems are just two known techniques chained together.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass to find the middle, one pass to reverse the second half, one pass (half-length) to compare.
+- **Space:** `O(1)` — only a fixed number of pointer variables; the second half is reversed in place rather than copied.

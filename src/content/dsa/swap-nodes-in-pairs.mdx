@@ -1,0 +1,189 @@
+---
+title: Swap Nodes in Pairs
+difficulty: Medium
+pattern: [Linked List, Recursion, Sentinel Node]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/swap-nodes-in-pairs/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Swap every adjacent pair of nodes in a linked list, in place, using either an iterative sentinel-based walk or a recursive divide-and-conquer approach.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a linked list, swap every two adjacent nodes and return the head of the modified list. The actual nodes must be relinked (not just their values swapped), and only constant extra space may be used.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[0, 100]`.
+- **Output:** the head of the list with every adjacent pair swapped — the head itself changes if the list has 2 or more nodes, since the original second node becomes the new head.
+- **Constraints noted:**
+  - Empty list (`head = null`) → nothing to swap → return `null`.
+  - Single-node list → no pair to swap → return unchanged.
+  - Even length, e.g. `1->2->3->4` → fully paired → `2->1->4->3`.
+  - Odd length, e.g. `1->2->3` → the last, unpaired node stays in place → `2->1->3`.
+  - Must swap nodes themselves, not just copy values between them (common shortcut, but disallowed by the "no modifying node values" note in the problem).
+
+## 3. Iterative approach
+
+Use a sentinel node before `head` so that swapping the first pair (which changes the head) needs no special case. Track `prev` (the node just before the current pair) and walk forward two nodes at a time, rewiring three pointers per pair.
+
+**Diagram — one swap step**, starting `prev -> first -> second -> rest`:
+
+```
+before:  prev -> [first] -> [second] -> [rest...]
+
+step 1:  first.next = second.next   (first now points past second, into rest)
+         prev -> [first] -> [rest...]      [second] (dangling, not yet linked)
+
+step 2:  second.next = first        (second now points back at first)
+         prev -> [second] -> [first] -> [rest...]
+
+step 3:  prev.next = second         (prev now points at the new pair-head)
+         prev -> [second] -> [first] -> [rest...]
+```
+
+Then advance `prev` to `first` (the pair's new *second* position) so the next iteration's `prev` correctly precedes the next pair.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function swapPairsIterative(head: ListNode | null): ListNode | null {
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let prev = sentinel;
+
+  while (prev.next !== null && prev.next.next !== null) {
+    const first = prev.next;
+    const second = first.next!;
+
+    first.next = second.next;
+    second.next = first;
+    prev.next = second;
+
+    prev = first; // first is now the second node of the swapped pair
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(n)` — each node visited once, in one pass.
+- **Space:** `O(1)` — a sentinel node and a fixed number of pointer variables.
+
+## 4. Recursive approach — with diagram
+
+The recursive idea: swap the **first pair**, then recursively solve the exact same problem on everything after it, and attach that recursive result behind the swapped pair. Each recursive call handles one pair and delegates the rest.
+
+**Base cases:** an empty list or a single-node list has no pair to swap — return it as-is.
+
+**Recursive step**, on `1 -> 2 -> 3 -> 4 -> null`:
+
+```
+swapPairs(1->2->3->4)
+  first = 1, second = 2
+  first.next = swapPairs(3->4)   <-- recurse on the rest first
+  second.next = first
+  return second
+```
+
+**Call tree — going down (each level peels off one pair and recurses on the rest):**
+
+```
+swapPairs(1->2->3->4->null)
+  └─ first=1, second=2, recurse on 3->4->null
+       swapPairs(3->4->null)
+         └─ first=3, second=4, recurse on null
+              swapPairs(null)
+                └─ base case: return null
+```
+
+**Unwinding — going back up (each level links its pair, then returns the new sub-head):**
+
+```
+swapPairs(null) returns null
+   ↑
+swapPairs(3->4->null):
+   first(3).next = null   →  3 -> null
+   second(4).next = 3     →  4 -> 3 -> null
+   returns 4  (new head of this sub-list)
+   ↑
+swapPairs(1->2->3->4->null):
+   first(1).next = 4      →  1 -> 4 -> 3 -> null   (1 now points at what recursion returned)
+   second(2).next = 1     →  2 -> 1 -> 4 -> 3 -> null
+   returns 2  (new head of the whole list)
+```
+
+Final result: `2 -> 1 -> 4 -> 3 -> null`, matching the iterative result.
+
+```ts
+function swapPairsRecursive(head: ListNode | null): ListNode | null {
+  if (head === null || head.next === null) {
+    return head; // base case: nothing to swap
+  }
+
+  const first = head;
+  const second = head.next;
+
+  first.next = swapPairsRecursive(second.next); // recurse on everything after the pair
+  second.next = first;
+
+  return second; // second is now the head of this swapped pair
+}
+```
+
+- **Time:** `O(n)` — each pair is processed once across the recursion.
+- **Space:** `O(n)` — the call stack holds one frame per pair (`n/2` frames), unlike the iterative version's `O(1)`.
+
+## 5. Identify the pattern and optimize
+
+Both approaches use the same core relinking logic — for a pair `first -> second`, redirect `second` to point at `first`, and `first` to point at whatever comes after the pair. The **iterative** version applies this with a sentinel and a `prev` pointer walking forward, achieving `O(1)` space. The **recursive** version expresses "process the rest of the list" as a direct recursive call instead of a loop, which is more concise and mirrors how the problem is naturally described ("swap this pair, then do the same to the rest") — but costs `O(n)` stack space instead of `O(1)`. Neither beats the other in time complexity; the choice is a space/readability tradeoff.
+
+## 6. Code it
+
+```ts
+function swapPairs(head: ListNode | null): ListNode | null {
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let prev = sentinel;
+
+  while (prev.next !== null && prev.next.next !== null) {
+    const first = prev.next;
+    const second = first.next!;
+
+    first.next = second.next;
+    second.next = first;
+    prev.next = second;
+
+    prev = first;
+  }
+
+  return sentinel.next;
+}
+```
+
+## 7. Test it manually
+
+- `1->2->3->4` → traced in step 4 → `2->1->4->3` (both approaches) ✓
+- `head = null` → iterative: `prev.next === null` immediately, loop never runs → returns `null`. Recursive: base case `head === null` → returns `null` ✓
+- `head = [9]` (single node) → iterative: `prev.next.next` would be `null` → loop never runs → returns `[9]`. Recursive: base case `head.next === null` → returns `[9]` ✓
+- `1->2->3` (odd length) → pair `(1,2)` swaps → `2->1->3`; second iteration: `prev.next = 3`, `prev.next.next = null` → loop stops, `3` stays in place → `2->1->3` ✓ (recursive: recurses on `3->null`, hits base case, returns `3` as-is, spliced in unchanged)
+
+## 8. Review and log
+
+- **Approach used:** two equivalent relinking strategies — iterative with a sentinel and `prev` pointer (`O(1)` space), and recursive with "swap this pair, recurse on the rest, splice results" (`O(n)` stack space).
+- **Mistake to watch for:** in the recursive version, `first.next` must be assigned the result of the recursive call **before** `second.next = first` — reversing that order would have `first.next` still pointing at `second` (a self-referencing loop) instead of the correctly swapped remainder.
+- **Recurring pattern to log:** "swap adjacent pair, recurse on the rest, splice on the way back up" is a template for other pairwise/grouped linked-list transformations (e.g. reverse nodes in k-group extends this same idea from pairs to groups of `k`).
+
+## Complexity
+
+- **Time:** `O(n)` for both approaches — every node is visited a constant number of times.
+- **Space:** `O(1)` for the iterative version; `O(n)` for the recursive version due to call-stack depth (`n/2` frames).

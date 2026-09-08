@@ -1,0 +1,154 @@
+---
+title: Remove Nth Node From End of List
+difficulty: Medium
+pattern: [Linked List, Two Pointers, Sentinel Node]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/remove-nth-node-from-end-of-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Remove the nth node from the end of a linked list by using two pointers spaced n apart, so the trailing pointer lands right before the target in one pass.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a linked list and an integer `n`, remove the `n`th node from the **end** of the list, and return the head of the modified list.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[1, 30]`; an integer `n` where `1 <= n <= length of list`.
+- **Output:** the head of the list with the target node removed — this may differ from the original `head` if the head itself is the node being removed.
+- **Constraints noted:**
+  - `n` is guaranteed valid (`1 <= n <= length`), so no out-of-range handling is required.
+  - `n` equals the list's length → the **head** itself must be removed, e.g. `head = [1,2,3], n = 3` → remove `1` → return `2->3`.
+  - `n = 1` → remove the **last** node, e.g. `head = [1,2,3], n = 1` → return `1->2`.
+  - Single-node list with `n = 1` → the only node is removed → return `null`.
+  - The target node could be anywhere: head, middle, or tail.
+
+## 3. Work a small example by hand
+
+`head = 1 -> 2 -> 3 -> 4 -> 5 -> null`, `n = 2` (remove the 2nd node from the end, which is `4`)
+
+**Two-pass approach:** first compute the list's length, then walk to the node just before the target.
+
+- Pass 1 — count nodes: `1,2,3,4,5` → length `= 5`.
+- Target's position from the **front** (`0`-indexed): `length - n = 5 - 2 = 3` → that's node `4`.
+- Pass 2 — walk `length - n - 1 = 2` steps from a sentinel before `head` to land on the node *just before* the target (node `3`), then relink: `3.next = 3.next.next` (skip `4`, point at `5`).
+
+Result: `1 -> 2 -> 3 -> 5 -> null`.
+
+**One-pass approach:** two pointers, `fast` and `slow`, both starting at a sentinel before `head`. Advance `fast` alone by `n + 1` steps first, to create an `n + 1` node gap, then advance both together until `fast` falls off the end — at which point `slow` sits exactly one node before the target.
+
+| phase | fast | slow | note |
+|-------|------|------|------|
+| start | sentinel | sentinel | both at sentinel |
+| after advancing fast by n+1=3 | 3 (node value) | sentinel | fast is 3 nodes ahead |
+| step 1 (both advance) | 4 | 1 | |
+| step 2 (both advance) | 5 | 2 | |
+| step 3 (both advance) | null | 3 | fast fell off the end → stop |
+
+`slow` now sits on node `3` — exactly the node before the target `4`. Relink `slow.next = slow.next.next` → skips `4`, links `3` directly to `5`.
+
+Result: `1 -> 2 -> 3 -> 5 -> null` — same answer as the two-pass approach, but reached in a single traversal.
+
+## 4. Two-pass approach
+
+Count the list's length first, then walk again to the node just before the target, using a sentinel to uniformly handle removing the head.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function removeNthFromEndTwoPass(head: ListNode | null, n: number): ListNode | null {
+  let length = 0;
+  for (let curr = head; curr !== null; curr = curr.next) {
+    length++;
+  }
+
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let prev = sentinel;
+  for (let i = 0; i < length - n; i++) {
+    prev = prev.next!;
+  }
+
+  prev.next = prev.next!.next;
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(n)` overall, but **two full traversals**: one to count, one to reach the removal point.
+- **Space:** `O(1)` — a sentinel node and a couple of counters, no extra structures. The complexity class is the same as the one-pass version; the cost here is doing the work in two separate walks instead of one.
+
+## 5. One-pass approach (optimal in traversal count)
+
+The two-pass approach needs the length up front only to know *how far from the front* the target sits. Instead, a **fixed-gap two-pointer** technique gets there in one traversal: advance `fast` exactly `n + 1` steps ahead of `slow` first (so there's an `n`-node gap *plus* one, meaning `slow` will end up one node before the target rather than on it). Then advance both pointers together — since the gap between them stays constant, by the time `fast` runs off the end of the list, `slow` has covered exactly the right distance to land just before the node to remove. No length needed, and only one pass over the list.
+
+```ts
+function removeNthFromEnd(head: ListNode | null, n: number): ListNode | null {
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let fast: ListNode | null = sentinel;
+  let slow: ListNode | null = sentinel;
+
+  for (let i = 0; i < n + 1; i++) {
+    fast = fast!.next;
+  }
+
+  while (fast !== null) {
+    fast = fast.next;
+    slow = slow!.next;
+  }
+
+  slow!.next = slow!.next!.next;
+  return sentinel.next;
+}
+```
+
+## 6. Code it
+
+```ts
+function removeNthFromEnd(head: ListNode | null, n: number): ListNode | null {
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let fast: ListNode | null = sentinel;
+  let slow: ListNode | null = sentinel;
+
+  for (let i = 0; i < n + 1; i++) {
+    fast = fast!.next;
+  }
+
+  while (fast !== null) {
+    fast = fast.next;
+    slow = slow!.next;
+  }
+
+  slow!.next = slow!.next!.next;
+  return sentinel.next;
+}
+```
+
+## 7. Test it manually
+
+- `1->2->3->4->5, n=2` → traced in step 3 → `1->2->3->5` (both approaches) ✓
+- `head = [1], n = 1` → `fast` advances `n+1=2` steps from sentinel: sentinel→`1`→`null`; while loop never runs (`fast` already `null`) → `slow` stays at sentinel → `sentinel.next = sentinel.next.next = null` → returns `null` ✓
+- `head = [1,2], n = 1` (remove last node) → `fast` advances 2 steps: sentinel→1→2; while loop: `fast=null`(from 2.next), `slow` advances to `1` → `slow.next = slow.next.next` skips `2` → returns `1->null` ✓
+- `head = [1,2,3], n = 3` (remove head) → `fast` advances 4 steps: sentinel→1→2→3→null; while loop never runs → `slow` stays at sentinel → `sentinel.next = sentinel.next.next` skips `1` → returns `2->3` ✓
+
+## 8. Review and log
+
+- **Approach used:** two-pass (count then walk) as the straightforward baseline, and a one-pass fixed-gap two-pointer technique (`fast` starts `n + 1` ahead of `slow`) as the optimized version — both `O(n)` time, but the one-pass version does a single traversal instead of two.
+- **Mistake to watch for:** the gap must be `n + 1`, not `n` — using `n` alone lands `slow` **on** the target node instead of the node **before** it, leaving no way to relink around it. The sentinel node is what makes removing the head itself (when `n` equals the list length) work without a separate special case.
+- **Recurring pattern to log:** the fixed-gap two-pointer technique (maintain a constant offset between two pointers, advance both until one hits a boundary) is distinct from the slow/fast *speed*-based technique (one pointer moves twice as fast) used in "middle of the linked list" and "linked list cycle" — same two-pointer family, different mechanism.
+
+## Complexity
+
+- **Time:** `O(n)` for both approaches — the one-pass version does this in a single traversal, while the two-pass version does two separate `O(n)` walks (still linear overall, `O(2n) = O(n)`).
+- **Space:** `O(1)` for both — a sentinel node and a fixed number of pointer/counter variables, regardless of list length.

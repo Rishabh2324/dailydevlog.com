@@ -1,0 +1,133 @@
+---
+title: Remove Linked List Elements
+difficulty: Easy
+pattern: [Linked List, Sentinel Node]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/remove-linked-list-elements/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Remove every node with a given value from a linked list in one pass using a sentinel (dummy) head so the real head never needs special-casing.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a singly linked list and an integer `val`, remove every node whose value equals `val`, and return the new head of the resulting list.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[0, 10^4]`, and an integer `val`.
+- **Output:** the head of the list with all `val` nodes removed — this may differ from the original `head` if the original head itself needs removing.
+- **Constraints noted:**
+  - Empty list → nothing to remove → return `null`.
+  - The head node itself matches `val`, e.g. `head = [1,2,6], val = 1` → the returned head must become `2`, not `1`.
+  - Multiple, possibly consecutive, matches, e.g. `head = [7,7,7,7], val = 7` → every node removed → return `null`.
+  - `val` doesn't appear at all → list returned unchanged.
+  - Matches scattered anywhere: start, middle, end, or several in a row.
+
+## 3. Diagram the sentinel approach
+
+Without a sentinel, removing the head is a special case distinct from removing any other node (there's no "previous" node to relink for the head). A **sentinel (dummy) node** placed before the real head removes this asymmetry — `sentinel.next` always points at "the current head," whether that's the original head or a later node after earlier removals.
+
+`head = 1 -> 2 -> 6 -> 3 -> 4 -> 5 -> 6 -> null`, `val = 6`
+
+```
+sentinel -> [1] -> [2] -> [6] -> [3] -> [4] -> [5] -> [6] -> null
+    ^prev
+```
+
+Walk `prev` and `curr = prev.next` together. Whenever `curr.val === val`, skip over it by relinking `prev.next = curr.next` (and only then advance `curr`, since `prev` shouldn't move past a node just removed — it needs to check the *next* node against `val` too, in case of consecutive matches):
+
+```
+prev=[sentinel] curr=[1]   1 !== 6  → advance both: prev=[1], curr=[2]
+prev=[1]        curr=[2]   2 !== 6  → advance both: prev=[2], curr=[6]
+prev=[2]        curr=[6]   6 === 6  → skip: prev.next = curr.next ([3])
+                                       sentinel -> [1] -> [2] -> [3] -> [4] -> [5] -> [6] -> null
+                                       prev stays [2], curr becomes [3]
+prev=[2]        curr=[3]   3 !== 6  → advance both: prev=[3], curr=[4]
+prev=[3]        curr=[4]   4 !== 6  → advance both: prev=[4], curr=[5]
+prev=[4]        curr=[5]   5 !== 6  → advance both: prev=[5], curr=[6]
+prev=[5]        curr=[6]   6 === 6  → skip: prev.next = curr.next (null)
+                                       sentinel -> [1] -> [2] -> [3] -> [4] -> [5] -> null
+                                       curr becomes null → loop ends
+```
+
+Final list: `1 -> 2 -> 3 -> 4 -> 5 -> null`. Return `sentinel.next` as the new head — which correctly reflects the case where the original head itself was removed, with zero special-casing needed.
+
+## 4. Brute force first
+
+Copy every non-matching value into a new array, then rebuild a fresh list from it.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function removeElementsBruteForce(head: ListNode | null, val: number): ListNode | null {
+  const keep: number[] = [];
+  for (let curr = head; curr !== null; curr = curr.next) {
+    if (curr.val !== val) keep.push(curr.val);
+  }
+
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  for (const v of keep) {
+    tail.next = new ListNode(v);
+    tail = tail.next;
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(n)` — one pass to filter, one pass to rebuild.
+- **Space:** `O(n)` for the `keep` array plus `n` brand-new nodes — unnecessary, since the surviving original nodes could just be relinked directly instead of recreated.
+
+## 5. Identify the pattern and optimize
+
+This is a **sentinel (dummy) node** problem: the only real obstacle to an in-place, single-pass removal is that the head node has no "previous" node to update when it needs removing — dropping the entire second array/rebuild step from the brute force. By prepending a sentinel node whose `next` always points at the current head, every removal (head or not) becomes the same operation: "relink `prev.next` to skip over `curr`." This needs only one pass and reuses the existing nodes, dropping space from `O(n)` down to `O(1)`.
+
+## 6. Code it
+
+```ts
+function removeElements(head: ListNode | null, val: number): ListNode | null {
+  const sentinel = new ListNode(-1);
+  sentinel.next = head;
+
+  let prev = sentinel;
+  let curr = head;
+
+  while (curr !== null) {
+    if (curr.val === val) {
+      prev.next = curr.next;
+    } else {
+      prev = curr;
+    }
+    curr = curr.next;
+  }
+
+  return sentinel.next;
+}
+```
+
+## 7. Test it manually
+
+- `1->2->6->3->4->5->6, val=6` → traced in step 3 → `1->2->3->4->5` ✓
+- `head = null, val = 1` → `curr = null` immediately, loop never runs → returns `sentinel.next` (`null`) ✓
+- `head = [7,7,7,7], val = 7` → every node matches: `prev` never advances past `sentinel`, each `curr` gets skipped in turn → `sentinel.next` ends as `null` → returns `null` ✓
+- `head = [1,2,6], val = 6` → `1,2` don't match (`prev` advances to `2`), `6` matches (`prev.next = curr.next = null`) → returns `1->2` ✓
+- `head = [1,2,3], val = 5` (no matches) → every node advances `prev` normally, nothing skipped → returns `1->2->3` unchanged ✓
+
+## 8. Review and log
+
+- **Approach used:** sentinel node placed before the real head, so removing any node — including the original head — is handled by the same `prev.next = curr.next` relink, with no special case needed.
+- **Mistake to watch for:** advancing `prev` unconditionally (instead of only when `curr` is *kept*) would leave `prev` pointing at a node that was just removed, breaking the relink for a subsequent match — `prev` must only move forward when the current node survives.
+- **Recurring pattern to log:** "sentinel node absorbs the head's special case" is a staple across linked list problems — reused directly in "design linked list" and "merge two sorted lists," anywhere the head itself might need to change.
+
+## Complexity
+
+- **Time:** `O(n)` — a single pass through the list, each node visited once.
+- **Space:** `O(1)` — one sentinel node and two pointer variables, regardless of list length.

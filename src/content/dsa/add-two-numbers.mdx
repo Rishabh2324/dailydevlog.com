@@ -1,0 +1,128 @@
+---
+title: Add Two Numbers
+difficulty: Medium
+pattern: [Linked List, Math, Sentinel Node]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/add-two-numbers/
+timeComplexity: O(max(m, n))
+spaceComplexity: O(max(m, n))
+summary: Add two numbers stored as reversed-digit linked lists by walking both simultaneously, summing digits plus a running carry, and building the result list node by node.
+---
+
+## 1. Restate the problem
+
+You're given two non-empty linked lists, `l1` and `l2`, each representing a non-negative integer where the digits are stored in **reverse order** (the ones digit is the head), and each node contains a single digit. Add the two numbers and return the sum as a linked list, in the same reversed-digit format.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `l1` and `l2`, heads of singly linked lists of digits (`0-9` each node), each list length in `[1, 100]`. Neither list has leading zeros, except the number `0` itself (a single `[0]` node).
+- **Output:** the head of a new linked list representing the sum, digits in reverse order.
+- **Constraints noted:**
+  - Lists can be **different lengths**, e.g. `l1 = [9,9]`, `l2 = [1]` (99 + 1).
+  - A carry can ripple all the way to a **new final digit** beyond both input lengths, e.g. `[5]` + `[5]` = `10` → result `[0,1]` (a 2-digit result from two 1-digit inputs).
+  - Both single-digit inputs summing without carry, e.g. `[2]` + `[3] = [5]`.
+  - One list much longer than the other — the shorter list's "missing" digits are treated as `0`.
+  - `[0]` + `[0]` → result `[0]`.
+
+## 3. Work a small example by hand — sum and carry trace
+
+`l1 = 2 -> 4 -> 3` (represents `342`), `l2 = 5 -> 6 -> 4` (represents `465`)
+
+Walk both lists digit by digit (least significant first, matching the reversed storage), tracking a running `carry`:
+
+| step | l1 digit | l2 digit | carry in | sum = l1 + l2 + carry | digit out (sum % 10) | carry out (sum / 10, floored) |
+|------|----------|----------|----------|--------------------------|------------------------|----------------------------------|
+| 1    | 2        | 5        | 0        | 7                          | 7                       | 0                                  |
+| 2    | 4        | 6        | 0        | 10                         | 0                       | 1                                  |
+| 3    | 3        | 4        | 1        | 8                          | 8                       | 0                                  |
+
+Both lists exhausted, and final carry is `0` (nothing more to append). Result digits in order produced: `7, 0, 8` → list `7 -> 0 -> 8`, representing `807` — matches `342 + 465 = 807`. ✓
+
+## 4. Brute force first
+
+Convert each linked list into an actual number (reading digits from least to most significant), add the two numbers, then convert the sum back into a reversed-digit linked list.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function addTwoNumbersBruteForce(l1: ListNode | null, l2: ListNode | null): ListNode | null {
+  const toNumber = (node: ListNode | null): bigint => {
+    let result = 0n;
+    let place = 1n;
+    for (let curr = node; curr !== null; curr = curr.next) {
+      result += BigInt(curr.val) * place;
+      place *= 10n;
+    }
+    return result;
+  };
+
+  let sum = toNumber(l1) + toNumber(l2);
+
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  if (sum === 0n) {
+    tail.next = new ListNode(0);
+  }
+  while (sum > 0n) {
+    tail.next = new ListNode(Number(sum % 10n));
+    tail = tail.next;
+    sum /= 10n;
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(m + n)` — building both numbers and the result list are each linear in digit count.
+- **Space:** `O(m + n)` — same asymptotic space as the optimal version, but relies on `bigint` arithmetic to avoid overflow for very long digit lists (up to 100 digits, far beyond a normal number's safe integer range) — extra complexity the digit-by-digit approach avoids entirely.
+
+## 5. Identify the pattern and optimize
+
+This is a classic **simulated elementary-school addition**: since the digits are already stored least-significant-first, they can be summed directly in that order — exactly how addition is normally done by hand, digit by digit with a carry. No conversion to an actual number is needed (which sidesteps overflow concerns for very long lists entirely), and no extra pass is required: each step computes `l1.val + l2.val + carry`, emits `sum % 10` as the next result digit, and carries `Math.floor(sum / 10)` into the next step. The loop continues as long as *either* list still has digits, or a carry remains — naturally handling different-length inputs and a possible extra leading digit from a final carry.
+
+## 6. Code it
+
+```ts
+function addTwoNumbers(l1: ListNode | null, l2: ListNode | null): ListNode | null {
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  let carry = 0;
+
+  while (l1 !== null || l2 !== null || carry !== 0) {
+    const sum = (l1?.val ?? 0) + (l2?.val ?? 0) + carry;
+    carry = Math.floor(sum / 10);
+
+    tail.next = new ListNode(sum % 10);
+    tail = tail.next;
+
+    l1 = l1?.next ?? null;
+    l2 = l2?.next ?? null;
+  }
+
+  return sentinel.next;
+}
+```
+
+## 7. Test it manually
+
+- `l1 = 2->4->3`, `l2 = 5->6->4` → traced in step 3 → `7->0->8` (represents `807`) ✓
+- `l1 = [9,9]` (99), `l2 = [1]` (1) → step1: `9+1+0=10` → digit `0`, carry `1`; step2: `9+0+1=10` → digit `0`, carry `1`; step3: both lists exhausted but `carry=1`: `0+0+1=1` → digit `1`, carry `0` → result `0->0->1` (represents `100`) ✓
+- `l1 = [0]`, `l2 = [0]` → `0+0+0=0` → digit `0`, carry `0`; loop ends (`l1,l2` now `null`, `carry=0`) → result `[0]` ✓
+- `l1 = [5]`, `l2 = [5]` → `5+5+0=10` → digit `0`, carry `1`; next iteration: both lists `null` but `carry=1` → `0+0+1=1` → digit `1` → result `0->1` (represents `10`) ✓
+
+## 8. Review and log
+
+- **Approach used:** simulated digit-by-digit addition with a running carry, using a sentinel node to build the result list without special-casing the first digit.
+- **Mistake to watch for:** ending the loop on `l1 !== null || l2 !== null` alone (without also checking `carry !== 0`) drops a final carry digit when both lists are exhausted but a carry remains — e.g. `[5] + [5]` would incorrectly return `[0]` instead of `[0,1]`.
+- **Recurring pattern to log:** "walk two sequences in lockstep with a running carry, treating exhausted positions as 0" generalizes to "add two numbers II" (digits stored most-significant-first, often solved by reversing first) and to string-based big-number addition.
+
+## Complexity
+
+- **Time:** `O(max(m, n))` — one pass through the longer of the two lists (plus at most one extra step for a trailing carry).
+- **Space:** `O(max(m, n))` — the output list has at most one more digit than the longer input.

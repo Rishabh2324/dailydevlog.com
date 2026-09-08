@@ -1,0 +1,118 @@
+---
+title: Middle of the Linked List
+difficulty: Easy
+pattern: [Linked List, Two Pointers]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/middle-of-the-linked-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Find the middle node of a singly linked list in one pass using a slow and fast pointer, where fast moves twice as far as slow.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a singly linked list, return the middle node of the list. If there are two middle nodes (an even-length list), return the **second** middle node.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[1, 100]`.
+- **Output:** the middle node of the list (not just its value) — the second middle if the length is even.
+- **Constraints noted:**
+  - Odd-length list, e.g. `1->2->3->4->5` → single true middle, `3`.
+  - Even-length list, e.g. `1->2->3->4->5->6` → two middles (`3` and `4`) → return the **second** one, `4`.
+  - Single-node list → that node is both the head and the middle → return it.
+  - Must not require knowing the list's length up front from a separate pass (though that's a valid brute force) — the target is a one-pass solution.
+
+## 3. Work a small example by hand — slow/fast pointer trace
+
+`1 -> 2 -> 3 -> 4 -> 5 -> null` (odd length)
+
+Both pointers start at `head`. Each step: `slow` advances one node, `fast` advances two nodes. Loop stops when `fast` (or `fast.next`) reaches `null`.
+
+| step | slow | fast | fast.next exists? |
+|------|------|------|---------------------|
+| start| 1    | 1    | yes                  |
+| 1    | 2    | 3    | yes                  |
+| 2    | 3    | 5    | no (5.next = null)   |
+
+Loop stops (`fast.next === null`) with `slow = 3` — the middle, matching the expected output.
+
+`1 -> 2 -> 3 -> 4 -> 5 -> 6 -> null` (even length)
+
+| step | slow | fast | fast exists? |
+|------|------|------|----------------|
+| start| 1    | 1    | yes            |
+| 1    | 2    | 3    | yes            |
+| 2    | 3    | 5    | yes            |
+| 3    | 4    | null (5.next.next) | loop condition `fast !== null` now false |
+
+Loop stops with `slow = 4` — the **second** of the two middles (`3` and `4`), matching what the problem asks for. The reason this lands on the second middle rather than the first: `fast` reaching exactly `null` (rather than stopping one step early) means `slow` has taken one extra step past the halfway point.
+
+## 4. Brute force first
+
+Walk the list once to count its length `n`, then walk it again `Math.floor(n / 2)` steps to reach the middle.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function middleNodeBruteForce(head: ListNode | null): ListNode | null {
+  let length = 0;
+  for (let curr = head; curr !== null; curr = curr.next) {
+    length++;
+  }
+
+  let curr = head;
+  for (let i = 0; i < Math.floor(length / 2); i++) {
+    curr = curr!.next;
+  }
+
+  return curr;
+}
+```
+
+- **Time:** `O(n)` — but requires **two** full passes: one to count, one to reach the middle.
+- **Space:** `O(1)`, no extra structures — the complexity is fine, but it needs the list traversed twice.
+
+## 5. Identify the pattern and optimize
+
+This is the **slow and fast pointer** (tortoise and hare) technique: since `fast` always covers exactly twice the distance `slow` does, by the time `fast` reaches the end of the list, `slow` has covered exactly half the distance — landing it on the middle node in a **single pass**, with no need to know the list's length ahead of time. This collapses the brute force's two separate traversals into one simultaneous walk, still `O(n)` time but only touching each node once (versus roughly `1.5n` node visits in the two-pass version) and no length-counting variable needed.
+
+## 6. Code it
+
+```ts
+function middleNode(head: ListNode | null): ListNode | null {
+  let slow = head;
+  let fast = head;
+
+  while (fast !== null && fast.next !== null) {
+    slow = slow!.next;
+    fast = fast.next.next;
+  }
+
+  return slow;
+}
+```
+
+## 7. Test it manually
+
+- `1->2->3->4->5` → traced in step 3 → `slow` ends at `3` ✓
+- `1->2->3->4->5->6` → traced in step 3 → `slow` ends at `4` (second middle) ✓
+- `head = [7]` (single node) → `fast.next` is `null` immediately → loop never runs → returns `slow` (`[7]`) unchanged ✓
+- `1->2` → `fast = 1`, `fast.next = 2` exists → one iteration: `slow = 2`, `fast = 2.next.next = null` → loop stops (`fast === null`) → returns `slow` (`2`), the second of the two middles ✓
+
+## 8. Review and log
+
+- **Approach used:** slow/fast (tortoise and hare) two-pointer traversal — fast moves twice as far as slow, so slow naturally lands on the middle when fast exhausts the list.
+- **Mistake to watch for:** the loop condition must check **both** `fast !== null` and `fast.next !== null` — checking only `fast !== null` causes a crash on `fast.next.next` when `fast.next` is `null` (odd-length lists hit this on the last iteration).
+- **Recurring pattern to log:** slow/fast pointers generalize to cycle detection ("linked list cycle," where fast catching up to slow signals a loop), finding the "nth node from the end," and palindrome-checking a linked list (find the middle, then reverse the second half).
+
+## Complexity
+
+- **Time:** `O(n)` — a single pass through the list; `fast` visits each node once (twice as fast), `slow` visits each node once.
+- **Space:** `O(1)` — only two pointer variables, no extra structures.

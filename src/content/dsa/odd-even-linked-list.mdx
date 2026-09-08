@@ -1,0 +1,131 @@
+---
+title: Odd Even Linked List
+difficulty: Medium
+pattern: [Linked List, Two Pointers]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/odd-even-linked-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Group all odd-indexed nodes before all even-indexed nodes in a linked list, in place, using two pointers that thread through their own positions.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a singly linked list, group all the nodes at **odd** indices together followed by the nodes at **even** indices, and return the reordered list. Indices are `1`-indexed (the first node is index `1`, considered odd). This must be done in `O(1)` extra space and `O(n)` time, and the relative order *within* the odd group and *within* the even group must be preserved.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, with the number of nodes in `[0, 10^4]`.
+- **Output:** the head of the reordered list — all odd-indexed nodes (1st, 3rd, 5th, ...) first, in original relative order, followed by all even-indexed nodes (2nd, 4th, 6th, ...), also in original relative order.
+- **Constraints noted:**
+  - Empty list or single-node list → nothing to reorder → return unchanged.
+  - Odd total length, e.g. `1->2->3->4->5` → odd group `1,3,5`, even group `2,4` → result `1->3->5->2->4`.
+  - Even total length, e.g. `1->2->3->4` → odd group `1,3`, even group `2,4` → result `1->3->2->4`.
+  - Must not just sort by value or use extra storage — this is a structural relinking based on position, not value.
+
+## 3. Work a small example by hand — odd/even pointer trace
+
+`head = 1 -> 2 -> 3 -> 4 -> 5 -> null`
+
+Use two pointers, `odd` (starts at `head`, the 1st node) and `even` (starts at `head.next`, the 2nd node), plus a saved reference `evenHead` to the start of the even chain (needed to reattach it after the odd chain later). Advance each pointer by *two* nodes at a time, relinking as they go:
+
+| step | odd | even | action |
+|------|-----|------|--------|
+| start | 1  | 2    | `evenHead = 2` (saved for later) |
+| 1     | -  | -    | `odd.next = even.next` → `1.next = 3` (skip over `2`) |
+| 1b    | 3  | -    | advance `odd = odd.next` → `odd = 3` |
+| 2     | -  | -    | `even.next = odd.next` → `2.next = 4` (skip over `3`) |
+| 2b    | -  | 4    | advance `even = even.next` → `even = 4` |
+| 3     | -  | -    | `odd.next = even.next` → `3.next = 5` (skip over `4`) |
+| 3b    | 5  | -    | advance `odd = odd.next` → `odd = 5` |
+| 4     | -  | -    | `even.next = odd.next` → `4.next = null` (`5.next` is `null`) |
+| 4b    | -  | null | advance `even = even.next` → `even = null` → loop ends (`even === null`) |
+
+After the loop: `odd.next = evenHead` → `5.next = 2`, joining the two chains: `1 -> 3 -> 5 -> 2 -> 4 -> null`, matching the expected output.
+
+```
+odd chain:   1 -> 3 -> 5
+even chain:  2 -> 4
+final:       1 -> 3 -> 5 -> 2 -> 4 -> null   (odd chain's tail links to evenHead)
+```
+
+## 4. Brute force first
+
+Walk the list once, splitting values into two arrays by position, then build a brand-new list by concatenating them.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function oddEvenListBruteForce(head: ListNode | null): ListNode | null {
+  const oddVals: number[] = [];
+  const evenVals: number[] = [];
+
+  let index = 1;
+  for (let curr = head; curr !== null; curr = curr.next, index++) {
+    (index % 2 === 1 ? oddVals : evenVals).push(curr.val);
+  }
+
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  for (const val of [...oddVals, ...evenVals]) {
+    tail.next = new ListNode(val);
+    tail = tail.next;
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(n)` — one pass to split, one pass to rebuild.
+- **Space:** `O(n)` for the two arrays plus `n` brand-new nodes — unnecessary, since the existing nodes can just be relinked directly.
+
+## 5. Identify the pattern and optimize
+
+This is a **dual-pointer in-place relinking** problem: rather than copying values out, two pointers — `odd` and `even` — can each walk their own "every other node" chain simultaneously, hopping over the opposite-parity node at each step (`odd.next = odd.next.next`, effectively, expressed here as `odd.next = even.next`). Once `even` (which always trails one step behind `odd`) falls off the end of the list, the two chains are fully separated in place; splicing them back together just means pointing the odd chain's tail at the saved `evenHead`. This drops the space cost from `O(n)` down to `O(1)`, since no values are copied — only existing `next` pointers are redirected.
+
+## 6. Code it
+
+```ts
+function oddEvenList(head: ListNode | null): ListNode | null {
+  if (head === null || head.next === null) return head;
+
+  let odd = head;
+  let even = head.next;
+  const evenHead = even;
+
+  while (even !== null && even.next !== null) {
+    odd.next = even.next;
+    odd = odd.next;
+    even.next = odd.next;
+    even = even.next;
+  }
+
+  odd.next = evenHead;
+  return head;
+}
+```
+
+## 7. Test it manually
+
+- `1->2->3->4->5` → traced in step 3 → `1->3->5->2->4` ✓
+- `head = null` → guard clause (`head === null`) → returns `null` ✓
+- `head = [7]` (single node) → guard clause (`head.next === null`) → returns `[7]` unchanged ✓
+- `1->2` → guard clauses don't trigger; loop condition `even.next !== null` fails immediately (`even = 2`, `2.next = null`) → loop never runs → `odd.next = evenHead` → `1.next = 2` (unchanged) → returns `1->2` ✓
+- `1->2->3->4` (even length) → `odd=1,even=2,evenHead=2`; iter1: `1.next=3`, `odd=3`, `2.next=4`, `even=4`; loop condition `even.next!==null` fails (`4.next=null`) → loop ends → `odd.next=evenHead` → `3.next=2` → result `1->3->2->4` ✓
+
+## 8. Review and log
+
+- **Approach used:** two pointers (`odd`, `even`) walking their respective parity chains in lockstep, each skipping over the opposite chain's node, with the even chain's original head saved so it can be reattached after the odd chain's tail once separation is complete.
+- **Mistake to watch for:** the loop condition must check both `even !== null` **and** `even.next !== null` — checking only `even !== null` risks `odd.next = even.next` writing `undefined`-like behavior when `even.next` is already `null` past the list's end, and can miscount which node the final `odd.next = evenHead` splice should follow.
+- **Recurring pattern to log:** "two pointers each walking a distinct interleaved subsequence, relinked in place" generalizes to problems like "reorder list" (interleaving front and reversed-back halves) and any partition-by-position (rather than partition-by-value) linked list restructuring.
+
+## Complexity
+
+- **Time:** `O(n)` — a single pass through the list; each node is visited once by either `odd` or `even`.
+- **Space:** `O(1)` — three pointer variables (`odd`, `even`, `evenHead`), no extra data structures.

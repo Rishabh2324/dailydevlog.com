@@ -1,0 +1,116 @@
+---
+title: Remove Duplicates from Sorted List
+difficulty: Easy
+pattern: [Linked List]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/remove-duplicates-from-sorted-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Remove consecutive duplicate values from a sorted linked list in one pass by skipping over repeats directly adjacent to the current node.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a **sorted** singly linked list, delete all duplicate values such that each distinct value appears only once, and return the resulting sorted list.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a sorted (ascending) singly linked list, with the number of nodes in `[0, 300]`.
+- **Output:** the head of the list with duplicate values collapsed to a single occurrence each — the list remains sorted.
+- **Constraints noted:**
+  - Because the list is **sorted**, all duplicates of a value are guaranteed to be consecutive — no need to search the whole list for repeats.
+  - Empty list (`head = null`) → nothing to do → return `null`.
+  - Single-node list → no duplicates possible → return unchanged.
+  - Multiple consecutive duplicates of the same value, e.g. `1->1->1->2` → collapse to `1->2`.
+  - Duplicates only at the end, e.g. `1->2->3->3` → collapse to `1->2->3`.
+  - No duplicates at all → list returned unchanged.
+
+## 3. Work a small example by hand
+
+`head = 1 -> 1 -> 2 -> 3 -> 3 -> null`
+
+Walk a single pointer `curr` starting at `head`. At each step, compare `curr.val` to `curr.next.val`: if they're equal, skip the duplicate by relinking `curr.next = curr.next.next` (and don't advance `curr`, in case there are more than two duplicates in a row); otherwise, advance `curr` to `curr.next`.
+
+| curr | curr.next | equal? | action |
+|------|-----------|--------|--------|
+| 1    | 1         | yes    | skip: curr.next = curr.next.next (`2`) → list: `1->2->3->3` |
+| 1    | 2         | no     | advance: curr = 2 |
+| 2    | 3         | no     | advance: curr = 3 |
+| 3    | 3         | yes    | skip: curr.next = curr.next.next (`null`) → list: `1->2->3` |
+| 3    | null      | (curr.next is null) | loop ends |
+
+Final list: `1 -> 2 -> 3 -> null`, matching the expected output.
+
+## 4. Brute force first
+
+Collect every value into a `Set` (which naturally drops duplicates while preserving insertion order in JS), then rebuild the list from the set's contents.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function deleteDuplicatesBruteForce(head: ListNode | null): ListNode | null {
+  const seen = new Set<number>();
+  for (let curr = head; curr !== null; curr = curr.next) {
+    seen.add(curr.val);
+  }
+
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  for (const val of seen) {
+    tail.next = new ListNode(val);
+    tail = tail.next;
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O(n)` — one pass to collect, one pass to rebuild.
+- **Space:** `O(n)` for the `Set` plus `n` brand-new nodes — unnecessary, since the sortedness guarantee means duplicates can be detected and removed without any auxiliary storage at all.
+
+## 5. Identify the pattern and optimize
+
+This is a **single-pointer adjacent-comparison** problem, and it's simpler than the general "remove duplicates from an unsorted list" problem specifically *because* the list is sorted: every duplicate of a value is guaranteed to sit immediately next to another occurrence of the same value, so checking only `curr.val` against `curr.next.val` is sufficient — no set of "seen" values is needed to catch a duplicate that reappears far later. This collapses the brute force's `O(n)` extra space down to `O(1)`, reusing the existing nodes and relinking around duplicates in place.
+
+## 6. Code it
+
+```ts
+function deleteDuplicates(head: ListNode | null): ListNode | null {
+  let curr = head;
+
+  while (curr !== null && curr.next !== null) {
+    if (curr.val === curr.next.val) {
+      curr.next = curr.next.next;
+    } else {
+      curr = curr.next;
+    }
+  }
+
+  return head;
+}
+```
+
+## 7. Test it manually
+
+- `1->1->2->3->3` → traced in step 3 → `1->2->3` ✓
+- `head = null` → loop condition `curr !== null` fails immediately → returns `null` ✓
+- `head = [5]` (single node) → `curr.next === null` → loop never runs → returns `[5]` unchanged ✓
+- `1->1->1->2` (triple duplicate) → `curr=1`: `1===1` → skip (curr.next→`1`), `curr` unchanged; `1===1` again → skip (curr.next→`2`); `1!==2` → advance `curr=2`; `curr.next===null` → loop ends → `1->2` ✓
+- `1->2->3` (no duplicates) → every comparison `!==`, `curr` just advances through → returns `1->2->3` unchanged ✓
+
+## 8. Review and log
+
+- **Approach used:** single-pointer adjacent comparison, exploiting sortedness so duplicates are always neighbors — skip via `curr.next = curr.next.next` without advancing `curr`, so consecutive runs of more than two duplicates are fully collapsed.
+- **Mistake to watch for:** advancing `curr` unconditionally after a skip (instead of only advancing on a non-match) misses later duplicates in a run of three or more identical values — `curr` must stay put after a skip so it re-checks against the newly-linked next node.
+- **Recurring pattern to log:** "sortedness means duplicates are adjacent, so no seen-set is needed" is the same insight used in "remove duplicates from sorted array" — this is the linked-list version of that array pattern, minus the write-pointer (relinking replaces overwriting).
+
+## Complexity
+
+- **Time:** `O(n)` — a single pass through the list, each node visited once.
+- **Space:** `O(1)` — one pointer variable, no extra data structures.

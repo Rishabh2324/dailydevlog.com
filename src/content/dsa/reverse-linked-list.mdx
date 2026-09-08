@@ -1,0 +1,144 @@
+---
+title: Reverse Linked List
+difficulty: Easy
+pattern: [Linked List, Recursion]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/reverse-linked-list/
+timeComplexity: O(n)
+spaceComplexity: O(1)
+summary: Reverse a singly linked list in place by walking it once and flipping each node's next pointer to point backward.
+---
+
+## 1. Restate the problem
+
+Given the `head` of a singly linked list, reverse the list and return the new head — the node that was previously the tail.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `head`, the head node of a singly linked list, where the number of nodes is in `[0, 5000]`.
+- **Output:** the head of the reversed list (previously the last node), or `null` if the input was empty.
+- **Constraints noted:**
+  - Empty list (`head = null`) → return `null`, nothing to reverse.
+  - Single-node list → the list is already "reversed" (a one-element list is its own reverse) → return `head` unchanged.
+  - Must reverse the actual `next` pointers, not just read values in reverse order — this is a structural mutation, not a read-only traversal.
+
+## 3. Diagram the reversal
+
+`1 -> 2 -> 3 -> null`
+
+**Iterative approach** — track three pointers: `prev` (the reversed portion built so far, starts `null`), `curr` (the node being processed), and a saved `next` (so the link isn't lost once `curr.next` is overwritten):
+
+```
+step 0:  prev=null   curr=[1]->[2]->[3]->null
+
+         save next = [2]
+         flip: [1].next = null   →   null <- [1]    [2]->[3]->null
+         advance: prev=[1], curr=[2]
+
+step 1:  prev=[1]<-           curr=[2]->[3]->null
+
+         save next = [3]
+         flip: [2].next = [1]   →   null <- [1] <- [2]    [3]->null
+         advance: prev=[2], curr=[3]
+
+step 2:  prev=[1]<-[2]<-       curr=[3]->null
+
+         save next = null
+         flip: [3].next = [2]   →   null <- [1] <- [2] <- [3]
+         advance: prev=[3], curr=null
+
+step 3:  curr = null → loop ends, return prev ([3])
+```
+
+Final list: `3 -> 2 -> 1 -> null`, with `prev` (now `[3]`) as the new head.
+
+## 4. Brute force first
+
+Collect all values into an array, then rebuild a brand-new list in reverse order.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function reverseListBruteForce(head: ListNode | null): ListNode | null {
+  const values: number[] = [];
+  for (let curr = head; curr !== null; curr = curr.next) {
+    values.push(curr.val);
+  }
+
+  let newHead: ListNode | null = null;
+  for (const val of values) {
+    const node = new ListNode(val);
+    node.next = newHead;
+    newHead = node;
+  }
+
+  return newHead;
+}
+```
+
+- **Time:** `O(n)` — one pass to collect values, one pass to rebuild.
+- **Space:** `O(n)` — the `values` array plus `n` brand-new nodes, when the original nodes could have been reused directly.
+
+## 5. Identify the pattern and optimize
+
+This is an **in-place pointer reversal** problem: rather than reading values and building a new list, the existing nodes can be relinked directly by walking the list once and flipping each `next` pointer to point at the previous node instead of the next one. The only subtlety is that overwriting `curr.next` destroys the only reference to the rest of the list — so the next node must be saved *before* the flip. This drops the space cost from `O(n)` (a new list, or an array of values) down to `O(1)`, since only a fixed number of pointer variables are needed regardless of list length.
+
+## 6. Code it
+
+```ts
+function reverseList(head: ListNode | null): ListNode | null {
+  let prev: ListNode | null = null;
+  let curr = head;
+
+  while (curr !== null) {
+    const next = curr.next;
+    curr.next = prev;
+    prev = curr;
+    curr = next;
+  }
+
+  return prev;
+}
+```
+
+**Recursive variant**, for comparison — recurse to the tail first, then fix links on the way back up:
+
+```ts
+function reverseListRecursive(head: ListNode | null): ListNode | null {
+  if (head === null || head.next === null) {
+    return head; // base case: empty list or last node is the new head
+  }
+
+  const newHead = reverseListRecursive(head.next);
+  head.next.next = head; // point the next node's next back at this node
+  head.next = null;      // sever this node's old forward link
+
+  return newHead;
+}
+```
+
+The recursive version reaches the same result but trades the iterative version's `O(1)` space for `O(n)` call-stack space, since it recurses all the way to the tail before any relinking happens.
+
+## 7. Test it manually
+
+- `1 -> 2 -> 3 -> null` → traced in step 3 → `3 -> 2 -> 1 -> null` ✓
+- `head = null` → `curr = null` from the start, loop never runs → returns `prev` (`null`) ✓
+- `head = [5]` (single node) → loop runs once: `next = null`, `[5].next = null` (unchanged), `prev = [5]`, `curr = null` → returns `[5]` unchanged ✓
+- `1 -> 2 -> null` → step 0: `next=[2]`, `[1].next=null`, `prev=[1]`, `curr=[2]`; step 1: `next=null`, `[2].next=[1]`, `prev=[2]`, `curr=null` → returns `2 -> 1 -> null` ✓
+
+## 8. Review and log
+
+- **Approach used:** iterative in-place reversal with three pointers (`prev`, `curr`, `next`), flipping each node's `next` pointer to point backward as the list is walked once.
+- **Mistake to watch for:** flipping `curr.next = prev` *before* saving `next` loses the rest of the list permanently, since that was the only reference to it — always capture `next` first, exactly one line before the mutation.
+- **Recurring pattern to log:** the `prev`/`curr`/`next` three-pointer walk generalizes to "reverse linked list II" (reverse a sublist between two positions) and "swap nodes in pairs" — any problem that relinks a list in place without extra storage.
+
+## Complexity
+
+- **Time:** `O(n)` — one pass through the list, each node visited once.
+- **Space:** `O(1)` for the iterative version — a fixed number of pointer variables regardless of list length. (The recursive version is `O(n)` due to call-stack depth.)

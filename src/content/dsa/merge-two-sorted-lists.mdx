@@ -1,0 +1,134 @@
+---
+title: Merge Two Sorted Lists
+difficulty: Easy
+pattern: [Linked List, Two Pointers, Sentinel Node]
+date: 2026-09-08
+problemUrl: https://leetcode.com/problems/merge-two-sorted-lists/
+timeComplexity: O(m + n)
+spaceComplexity: O(1)
+summary: Merge two sorted linked lists into one by walking two pointers and splicing the smaller node in each step, then appending whichever list has leftovers.
+---
+
+## 1. Restate the problem
+
+You're given the heads of two sorted (ascending) singly linked lists, `list1` and `list2`. Merge the two lists into one sorted list by splicing together the nodes of the first two lists — no new nodes should be created — and return the head of the merged list.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `list1` and `list2`, heads of sorted singly linked lists, each with length in `[0, 50]`.
+- **Output:** the head of a single sorted list formed by splicing together nodes from `list1` and `list2` (reusing existing nodes, not copying values).
+- **Constraints noted:**
+  - Either list can be empty (`null`) → the result is simply the other list, unchanged.
+  - Both lists empty → result is `null`.
+  - Lists of unequal length — one runs out before the other, and the rest of the longer list must be appended wholesale.
+  - Duplicate values across the two lists, e.g. `list1 = [1,2,4]`, `list2 = [1,3,4]` → order between equal values from different lists doesn't need special handling (either can go first, but a consistent tie-breaking rule keeps behavior predictable).
+
+## 3. Work a small example by hand — two pointers, then append the remainder
+
+`list1 = 1 -> 2 -> 4 -> null`, `list2 = 1 -> 3 -> 4 -> null`
+
+**Phase 1 — merge while both pointers have nodes:** track `p1` into `list1`, `p2` into `list2`, and a `tail` pointer building the result (starting from a sentinel node). At each step, splice whichever of `p1.val`/`p2.val` is smaller (ties go to `p1`) onto `tail`, then advance that source pointer and `tail`.
+
+| p1 | p2 | p1.val <= p2.val? | spliced | tail now points at | p1 after | p2 after |
+|----|----|---------------------|---------|----------------------|----------|----------|
+| 1  | 1  | yes (tie → p1)       | 1 (from list1) | 1                     | 2        | 1        |
+| 2  | 1  | no                   | 1 (from list2) | 1 (list2)             | 2        | 3        |
+| 2  | 3  | yes                  | 2 (from list1) | 2                     | 4        | 3        |
+| 4  | 3  | no                   | 3 (from list2) | 3                     | 4        | 4        |
+| 4  | 4  | yes (tie → p1)       | 4 (from list1) | 4 (list1)             | null     | 4        |
+
+Loop stops here since `p1` is now `null` — phase 1 ends.
+
+**Phase 2 — append whichever list has leftovers:** `p1` is exhausted (`null`), so simply attach the rest of `list2` (`p2`, currently at its own `4`, with `next = null`) directly onto `tail.next`.
+
+```
+tail.next = p2   // attaches the remaining 4 -> null from list2
+```
+
+Merged result: `1 -> 1 -> 2 -> 3 -> 4 -> 4 -> null`, matching the expected output.
+
+## 4. Brute force first
+
+Copy every value from both lists into one array, sort it, then rebuild a brand-new list from the sorted values.
+
+```ts
+class ListNode {
+  val: number;
+  next: ListNode | null = null;
+  constructor(val: number) {
+    this.val = val;
+  }
+}
+
+function mergeTwoListsBruteForce(
+  list1: ListNode | null,
+  list2: ListNode | null
+): ListNode | null {
+  const values: number[] = [];
+  for (let curr = list1; curr !== null; curr = curr.next) values.push(curr.val);
+  for (let curr = list2; curr !== null; curr = curr.next) values.push(curr.val);
+  values.sort((a, b) => a - b);
+
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+  for (const val of values) {
+    tail.next = new ListNode(val);
+    tail = tail.next;
+  }
+
+  return sentinel.next;
+}
+```
+
+- **Time:** `O((m + n) log(m + n))` — dominated by the sort, ignoring that both inputs are already individually sorted.
+- **Space:** `O(m + n)` for the array plus `m + n` brand-new nodes — both the sort and the fresh nodes are unnecessary given the inputs are already sorted and reusable.
+
+## 5. Identify the pattern and optimize
+
+This is a **two-pointer merge**, the same core step as merge sort's combine phase: since both lists are already sorted, the smallest not-yet-used value is always at the front of one of the two lists — no sorting needed, just repeatedly comparing the two fronts and taking the smaller. The key simplification worth calling out explicitly: once *either* pointer runs out, there's no need to keep comparing node by node — the remaining list is already sorted internally, so it can be spliced on **wholesale** in one step (`tail.next = p1` or `tail.next = p2`), rather than looping through its remaining nodes one at a time. This keeps the whole merge to a single pass, `O(m + n)` time, and reuses the original nodes for `O(1)` extra space (a sentinel plus pointers).
+
+## 6. Code it
+
+```ts
+function mergeTwoLists(list1: ListNode | null, list2: ListNode | null): ListNode | null {
+  const sentinel = new ListNode(-1);
+  let tail = sentinel;
+
+  let p1 = list1;
+  let p2 = list2;
+
+  while (p1 !== null && p2 !== null) {
+    if (p1.val <= p2.val) {
+      tail.next = p1;
+      p1 = p1.next;
+    } else {
+      tail.next = p2;
+      p2 = p2.next;
+    }
+    tail = tail.next;
+  }
+
+  // one of p1/p2 is now null — attach whichever list still has nodes left
+  tail.next = p1 !== null ? p1 : p2;
+
+  return sentinel.next;
+}
+```
+
+## 7. Test it manually
+
+- `list1 = 1->2->4`, `list2 = 1->3->4` → traced in step 3 → `1->1->2->3->4->4` ✓
+- `list1 = null`, `list2 = [0]` → loop never runs (`p1 === null`) → `tail.next = p1 !== null ? p1 : p2` → attaches `p2` (`[0]`) → returns `[0]` ✓
+- `list1 = null`, `list2 = null` → loop never runs → `tail.next = null` (both null) → returns `sentinel.next` (`null`) ✓
+- `list1 = [5]`, `list2 = [1,2,4]` → `5 <= 1`? no → splice `1` (list2), advance `p2=2`; `5<=2`? no → splice `2`, advance `p2=4`; `5<=4`? no → splice `4`, advance `p2=null` → loop ends (`p2===null`) → attach remaining `p1` (`[5]`) → returns `1->2->4->5` ✓
+
+## 8. Review and log
+
+- **Approach used:** two-pointer merge with a sentinel-built result — compare the fronts of both lists at each step, splice the smaller in, and once one list is exhausted, attach the other's remaining nodes in a single wholesale step rather than continuing node-by-node.
+- **Mistake to watch for:** after the main loop, forgetting that the *unfinished* list is already sorted and trying to loop through it manually is wasted work (and a common source of off-by-one bugs) — a direct `tail.next = p1 ?? p2` handles the entire remainder in one assignment.
+- **Recurring pattern to log:** "two-pointer merge of sorted sequences, append the leftover tail wholesale once one side is exhausted" is the same merge step used in "merge sorted array" and in merge sort's combine phase — the leftover-appending trick specifically saves a redundant loop whenever one side finishes first.
+
+## Complexity
+
+- **Time:** `O(m + n)` — each node from both lists is visited and spliced exactly once.
+- **Space:** `O(1)` — nodes are relinked directly from the input lists; only a sentinel node and a couple of pointers are allocated.
