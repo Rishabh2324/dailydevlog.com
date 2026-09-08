@@ -22,7 +22,7 @@ const { tags, kinds, placeholder = 'Search by title or summary…' } = Astro.pro
           type="button"
           data-filter-kind="all"
           aria-pressed="true"
-          class="rounded-full bg-ink px-3 py-1.5 text-sm font-medium text-on-dark"
+          class="rounded-full bg-ink px-3 py-1.5 text-sm font-medium text-canvas"
         >
           All
         </button>
@@ -72,7 +72,7 @@ const { tags, kinds, placeholder = 'Search by title or summary…' } = Astro.pro
     function setPressed(btn: HTMLButtonElement, pressed: boolean) {
       btn.setAttribute('aria-pressed', String(pressed));
       btn.classList.toggle('bg-ink', pressed);
-      btn.classList.toggle('text-on-dark', pressed);
+      btn.classList.toggle('text-canvas', pressed);
       btn.classList.toggle('border-hairline', !pressed);
       btn.classList.toggle('text-steel', !pressed);
     }
