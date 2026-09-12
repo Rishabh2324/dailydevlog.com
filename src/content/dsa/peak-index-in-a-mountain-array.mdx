@@ -1,0 +1,94 @@
+---
+title: Peak Index in a Mountain Array
+difficulty: Medium
+pattern: [Binary Search, Arrays]
+date: 2026-09-12
+problemUrl: https://leetcode.com/problems/peak-index-in-a-mountain-array
+timeComplexity: O(log n)
+spaceComplexity: O(1)
+summary: Find the peak index of a mountain array in O(log n) by binary searching toward the uphill side at each midpoint.
+---
+
+## 1. Restate the problem
+
+An array is a "mountain array" if it strictly increases to some peak index, then strictly decreases. Given such an array `arr`, return the peak index `i` — the index where `arr[i-1] < arr[i] > arr[i+1]`.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `arr`, an array of `3 <= arr.length <= 10^5` integers guaranteed to be a valid mountain array (strictly increasing then strictly decreasing, with at least one element on each side of the peak).
+- **Output:** the integer index of the single peak element.
+- **Constraints noted:**
+  - The array is guaranteed to be a valid mountain (no need to validate the shape) — exactly one peak always exists.
+  - Minimum length is `3`, so the peak always has at least one strictly smaller neighbor on each side (never at index `0` or the last index).
+  - Expected to run faster than `O(n)` (the problem's follow-up explicitly asks for a sub-linear solution).
+
+## 3. Work a small example by hand
+
+`arr = [0,2,5,6,4,3,1]`
+
+| low | high | mid | arr[mid] | arr[mid+1] | action |
+|-----|------|-----|----------|------------|--------|
+| 0 | 6 | 3 | 6 | 4 | falling (`arr[mid] > arr[mid+1]`) → peak is at `mid` or to the left → `high = 3` |
+| 0 | 3 | 1 | 2 | 5 | rising (`arr[mid] < arr[mid+1]`) → peak is to the right → `low = 2` |
+| 2 | 3 | 2 | 5 | 6 | rising → `low = 3` |
+
+Loop ends (`low === high === 3`). Peak index: `3` (`arr[3] = 6`) ✓.
+
+## 4. Brute force first
+
+Scan the array and find the index where the sequence stops increasing.
+
+```ts
+function peakIndexInMountainArrayBruteForce(arr: number[]): number {
+  for (let i = 1; i < arr.length - 1; i++) {
+    if (arr[i] > arr[i + 1]) return i;
+  }
+  return arr.length - 1;
+}
+```
+
+- **Time:** `O(n)` — walks up to the peak one element at a time, which is correct but not sub-linear as the follow-up asks.
+- **Space:** `O(1)`.
+
+## 5. Identify the pattern and optimize
+
+Comparing `arr[mid]` to `arr[mid + 1]` tells you which side of the mountain you're standing on. If `arr[mid] < arr[mid + 1]`, you're still on the uphill slope, so the peak must be to the right — search `[mid+1, high]`. If `arr[mid] > arr[mid + 1]`, you're on (or past) the peak — the peak is at `mid` or somewhere to the left — search `[low, mid]`. Since the mountain shape guarantees a single peak and strict monotonicity on each side, this comparison is always conclusive, letting binary search discard half the array each step and bring the time down from `O(n)` to `O(log n)`.
+
+## 6. Code it
+
+```ts
+function peakIndexInMountainArray(arr: number[]): number {
+  let low = 0;
+  let high = arr.length - 1;
+
+  while (low < high) {
+    const mid = low + Math.floor((high - low) / 2);
+
+    if (arr[mid] < arr[mid + 1]) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return low;
+}
+```
+
+## 7. Test it manually
+
+- `arr = [0,2,5,6,4,3,1]` → traced in step 3 → `3` ✓
+- `arr = [0,10,5,2]` → `low=0,high=3`; `mid=1`, `arr[1]=10 > arr[2]=5` → `high=1`; `low=0,high=1`; `mid=0`, `arr[0]=0 < arr[1]=10` → `low=1`; loop ends → returns `1` ✓
+- `arr = [3,4,5,1]` → `low=0,high=3`; `mid=1`, `arr[1]=4 < arr[2]=5` → `low=2`; `low=2,high=3`; `mid=2`, `arr[2]=5 > arr[3]=1` → `high=2`; loop ends → returns `2` ✓
+- `arr = [1,3,2]` (minimum length 3, peak in the middle) → `low=0,high=2`; `mid=1`, `arr[1]=3 > arr[2]=2` → `high=1`; `low=0,high=1`; `mid=0`, `arr[0]=1 < arr[1]=3` → `low=1`; loop ends → returns `1` ✓
+
+## 8. Review and log
+
+- **Approach used:** binary search comparing `arr[mid]` to its right neighbor to determine whether the current position is still climbing or has passed the peak, narrowing `low`/`high` until they converge.
+- **Mistake to watch for:** using `high = mid - 1` on the falling branch would wrongly exclude `mid` from consideration, even though `mid` itself could be the peak — since `mid` remains a valid candidate when falling, the bound must stay at `mid`, not `mid - 1`.
+- **Recurring pattern to log:** this is the same "binary search guided by local slope" technique as [[find-peak-element]], just specialized to an array guaranteed to have exactly one peak — generalizes to any single-hump/bitonic search problem.
+
+## Complexity
+
+- **Time:** `O(log n)` — binary search halves the candidate range each iteration.
+- **Space:** `O(1)` — a fixed number of pointer variables.

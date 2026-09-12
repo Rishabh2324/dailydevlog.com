@@ -1,0 +1,99 @@
+---
+title: Find Peak Element
+difficulty: Medium
+pattern: [Binary Search, Arrays]
+date: 2026-09-12
+problemUrl: https://leetcode.com/problems/find-peak-element/description/
+timeComplexity: O(log n)
+spaceComplexity: O(1)
+summary: Find the index of any peak element (strictly greater than its neighbors) in O(log n) by binary searching toward the uphill direction at each midpoint.
+---
+
+## 1. Restate the problem
+
+Given an integer array `nums`, a peak element is one strictly greater than its neighbors. Find the index of **any** peak element. Treat out-of-bounds neighbors (before index `0` or after the last index) as `-infinity`.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `nums`, an array of `1 <= nums.length <= 1000` integers, where `nums[i] != nums[i+1]` for all adjacent pairs (no ties between neighbors).
+- **Output:** the index of any one peak (multiple peaks may exist — any valid answer is accepted).
+- **Constraints noted:**
+  - Must run in `O(log n)`.
+  - Single-element array → that element is trivially a peak (both virtual neighbors are `-infinity`).
+  - A peak can be at either end of the array (boundary peak), not just in the interior.
+  - No adjacent duplicates guaranteed, so every comparison between neighbors is strict.
+  - Multiple peaks can exist (e.g. `[1,2,1,3,5,6,4]` has peaks at index `1` and index `5`) — any one is acceptable.
+
+## 3. Work a small example by hand
+
+`nums = [1,2,1,3,5,6,4]`
+
+| low | high | mid | nums[mid] | nums[mid+1] | action |
+|-----|------|-----|-----------|--------------|--------|
+| 0 | 6 | 3 | 3 | 5 | rising (`nums[mid] < nums[mid+1]`) → peak is to the right → `low = 4` |
+| 4 | 6 | 5 | 6 | 4 | falling (`nums[mid] > nums[mid+1]`) → peak is at `mid` or to the left → `high = 5` |
+| 4 | 5 | 4 | 5 | 6 | rising → `low = 5` |
+
+Loop ends (`low === high === 5`). Peak index: `5` (`nums[5] = 6`, greater than both `nums[4]=5` and `nums[6]=4`) ✓.
+
+## 4. Brute force first
+
+Scan every index and check if it's greater than both neighbors (treating out-of-bounds as `-infinity`).
+
+```ts
+function findPeakElementBruteForce(nums: number[]): number {
+  for (let i = 0; i < nums.length; i++) {
+    const left = i === 0 ? -Infinity : nums[i - 1];
+    const right = i === nums.length - 1 ? -Infinity : nums[i + 1];
+    if (nums[i] > left && nums[i] > right) return i;
+  }
+  return -1;
+}
+```
+
+- **Time:** `O(n)` — checks every element in the worst case, violating the `O(log n)` requirement.
+- **Space:** `O(1)`.
+
+## 5. Identify the pattern and optimize
+
+At any index `mid` (that isn't the last element), comparing `nums[mid]` to `nums[mid+1]` tells you which direction is "uphill." If `nums[mid] < nums[mid+1]`, the slope is rising, so there must be a peak somewhere to the right (the array either keeps rising to a boundary peak at the end, or turns downward at some point, creating an interior peak) — search `[mid+1, high]`. If `nums[mid] > nums[mid+1]`, the slope is falling, so `mid` itself could be the peak, or the peak is further left — search `[low, mid]`. This guarantees a peak always exists in the retained half, letting binary search discard the other half each step and bring the time down from `O(n)` to `O(log n)`.
+
+## 6. Code it
+
+```ts
+function findPeakElement(nums: number[]): number {
+  let low = 0;
+  let high = nums.length - 1;
+
+  while (low < high) {
+    const mid = low + Math.floor((high - low) / 2);
+
+    if (nums[mid] < nums[mid + 1]) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return low;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [1,2,1,3,5,6,4]` → traced in step 3 → `5` ✓
+- `nums = [1,2,3,1]` → `low=0,high=3`; `mid=1`, `2<3` → `low=2`; `low=2,high=3`; `mid=2`, `3>1`... wait `nums[2]=3`, `nums[3]=1`, `3>1` → `high=2`; loop ends (`low=2,high=2`) → returns `2` (`nums[2]=3`, greater than `nums[1]=2` and `nums[3]=1`) ✓
+- `nums = [1]` → `low=0,high=0` → loop doesn't run → returns `0` ✓
+- `nums = [1,2]` → `low=0,high=1`; `mid=0`, `1<2` → `low=1`; loop ends → returns `1` ✓ (boundary peak at the end)
+- `nums = [2,1]` → `low=0,high=1`; `mid=0`, `2>1` → `high=0`; loop ends → returns `0` ✓ (boundary peak at the start)
+
+## 8. Review and log
+
+- **Approach used:** binary search that compares `nums[mid]` to its right neighbor to decide which half is guaranteed to still contain a peak, narrowing `low`/`high` until they converge on one.
+- **Mistake to watch for:** using `high = mid - 1` when falling would incorrectly exclude `mid` itself, even though `mid` might be the exact peak — since `mid` is still a valid candidate when falling, the right bound must stay at `mid`, not `mid - 1`.
+- **Recurring pattern to log:** "binary search guided by local slope/comparison with a neighbor" generalizes to any problem over an array where a directional signal at the midpoint (rising/falling, greater/smaller) guarantees an answer exists in one particular half — mountain array problems, peak-finding in 2D grids, bitonic array search.
+
+## Complexity
+
+- **Time:** `O(log n)` — binary search halves the candidate range each iteration.
+- **Space:** `O(1)` — a fixed number of pointer variables.

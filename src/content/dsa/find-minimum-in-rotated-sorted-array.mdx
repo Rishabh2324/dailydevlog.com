@@ -1,0 +1,98 @@
+---
+title: Find Minimum in Rotated Sorted Array
+difficulty: Medium
+pattern: [Binary Search, Arrays]
+date: 2026-09-12
+problemUrl: https://leetcode.com/problems/find-minimum-in-rotated-sorted-array/description/
+timeComplexity: O(log n)
+spaceComplexity: O(1)
+summary: Find the minimum element of a rotated sorted array in O(log n) by binary searching toward the side that still contains the rotation point.
+---
+
+## 1. Restate the problem
+
+Given an array `nums` of unique integers originally sorted in ascending order, then rotated between `1` and `n` times at some unknown pivot, find the minimum element.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `nums`, an array of `1 <= nums.length <= 5000` **distinct** integers, rotated at an unknown pivot.
+- **Output:** the minimum value in `nums`.
+- **Constraints noted:**
+  - Must run in `O(log n)`.
+  - All values are distinct.
+  - The array may not actually be rotated (pivot at index `0`) — the whole array is then already sorted, and the minimum is `nums[0]`.
+  - Single-element array → that element is the minimum.
+  - The minimum is always exactly the element the rotation pivot points to (the one "smaller than everything before the break").
+
+## 3. Work a small example by hand
+
+`nums = [4,5,6,7,0,1,2]`
+
+| low | high | mid | nums[mid] | nums[high] | action |
+|-----|------|-----|-----------|------------|--------|
+| 0 | 6 | 3 | 7 | 2 | `nums[mid] > nums[high]` → minimum is to the right of `mid` → `low = 4` |
+| 4 | 6 | 5 | 1 | 2 | `nums[mid] <= nums[high]` → minimum is at `mid` or to the left → `high = 5` |
+| 4 | 5 | 4 | 0 | 1 | `nums[mid] <= nums[high]` → `high = 4` |
+
+Loop ends (`low === high === 4`). Minimum: `nums[4] = 0` ✓.
+
+## 4. Brute force first
+
+Scan the array linearly, tracking the smallest value seen.
+
+```ts
+function findMinBruteForce(nums: number[]): number {
+  let min = nums[0];
+  for (let i = 1; i < nums.length; i++) {
+    if (nums[i] < min) min = nums[i];
+  }
+  return min;
+}
+```
+
+- **Time:** `O(n)` — checks every element, violating the `O(log n)` requirement.
+- **Space:** `O(1)`.
+
+## 5. Identify the pattern and optimize
+
+Comparing `nums[mid]` to `nums[high]` reveals which side of the current range contains the rotation point (where the minimum sits). If `nums[mid] > nums[high]`, the range `[mid..high]` wraps around the rotation — the minimum must be strictly after `mid`, so search `[mid+1, high]`. If `nums[mid] <= nums[high]`, the range `[mid..high]` is already in proper sorted order, meaning the rotation point (if any) is at `mid` or before it — search `[low, mid]`, keeping `mid` in bounds since it could itself be the minimum. This binary search converges on the minimum in `O(log n)` instead of scanning everything.
+
+## 6. Code it
+
+```ts
+function findMin(nums: number[]): number {
+  let low = 0;
+  let high = nums.length - 1;
+
+  while (low < high) {
+    const mid = low + Math.floor((high - low) / 2);
+
+    if (nums[mid] > nums[high]) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return nums[low];
+}
+```
+
+## 7. Test it manually
+
+- `nums = [4,5,6,7,0,1,2]` → traced in step 3 → `0` ✓
+- `nums = [3,4,5,1,2]` → `low=0,high=4`; `mid=2`, `nums[2]=5 > nums[4]=2` → `low=3`; `low=3,high=4`; `mid=3`, `nums[3]=1 <= nums[4]=2` → `high=3`; loop ends → returns `nums[3]=1` ✓
+- `nums = [1]` → `low=0,high=0` → loop doesn't run → returns `nums[0]=1` ✓
+- `nums = [1,2,3,4,5]` (no rotation) → `low=0,high=4`; `mid=2`, `nums[2]=3 <= nums[4]=5` → `high=2`; `low=0,high=2`; `mid=1`, `nums[1]=2 <= nums[2]=3` → `high=1`; `low=0,high=1`; `mid=0`, `nums[0]=1 <= nums[1]=2` → `high=0`; loop ends → returns `nums[0]=1` ✓
+- `nums = [2,1]` → `low=0,high=1`; `mid=0`, `nums[0]=2 > nums[1]=1` → `low=1`; loop ends → returns `nums[1]=1` ✓
+
+## 8. Review and log
+
+- **Approach used:** binary search comparing `nums[mid]` against `nums[high]` to determine whether the rotation point (and thus the minimum) lies in the left or right half, narrowing `low`/`high` until they converge.
+- **Mistake to watch for:** comparing `nums[mid]` to `nums[low]` instead of `nums[high]` breaks down when the left half itself happens to be sorted but doesn't contain the rotation — comparing against `high` is the reliable anchor since the minimum, by definition, is always `<= nums[high]`.
+- **Recurring pattern to log:** "binary search anchored against the range's boundary element" generalizes to rotated-array problems broadly — finding the rotation count, searching for a target in a rotated array, or any structure with exactly one discontinuity.
+
+## Complexity
+
+- **Time:** `O(log n)` — binary search halves the candidate range each iteration.
+- **Space:** `O(1)` — a fixed number of pointer variables.

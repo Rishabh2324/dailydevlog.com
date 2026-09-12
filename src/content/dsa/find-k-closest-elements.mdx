@@ -1,0 +1,99 @@
+---
+title: Find K Closest Elements
+difficulty: Medium
+pattern: [Binary Search, Sliding Window]
+date: 2026-09-12
+problemUrl: https://namastedev.com/learn/namaste-dsa/find-k-closest-elements
+timeComplexity: O(log(n-k) + k)
+spaceComplexity: O(k)
+summary: Find the k integers closest to x in a sorted array by binary searching for the left edge of the size-k result window instead of scanning every possible window.
+---
+
+## 1. Restate the problem
+
+Given a sorted integer array `arr` and two integers `k` and `x`, return the `k` closest integers to `x` in `arr`. The result must also be sorted in ascending order. An integer `a` is considered closer to `x` than `b` if `|a - x| < |b - x|`, or if the distances are equal, the smaller value wins (`a < b`).
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `arr`, sorted ascending, `1 <= arr.length <= 10^4`; `k`, `1 <= k <= arr.length`; `x`, an integer.
+- **Output:** an array of exactly `k` integers from `arr`, sorted ascending, closest to `x` (ties broken by preferring the smaller value).
+- **Constraints noted:**
+  - `k` can equal `arr.length` → the entire array is the answer.
+  - `x` can be smaller than every element, or larger than every element — the window should slide all the way to one end.
+  - `x` can exactly match an element in `arr` — that element and its nearest neighbors form the window.
+  - Ties in distance (`|a - x| == |b - x|`) must resolve to the smaller value, not either arbitrarily.
+
+## 3. Work a small example by hand
+
+`arr = [1,2,3,4,5,6,7]`, `k = 3`, `x = 5`
+
+The answer window always has size `3`, so the "left edge" of the window can only range over indices `0` to `n - k = 4`. Binary search that range, comparing the distance of the window's current left edge to the distance of the element just past the window's right edge:
+
+| low | high | mid | x - arr[mid] | arr[mid+k] - x | compare | action |
+|-----|------|-----|---------------|------------------|---------|--------|
+| 0 | 4 | 2 | `5 - 3 = 2` | `arr[5] - 5 = 1` | `2 > 1` | left edge too far left (window's left side is farther from `x` than the element just outside its right side) → `low = 3` |
+| 3 | 4 | 3 | `5 - 4 = 1` | `arr[6] - 5 = 2` | `1 > 2` false | window is good here → `high = 3` |
+
+Loop ends (`low === high === 3`). Window `arr.slice(3, 6) = [4, 5, 6]` ✓ — the three integers closest to `5`.
+
+## 4. Brute force first
+
+Sort every element of `arr` by distance to `x` (with ties broken by value), take the first `k`, then sort those back into ascending order.
+
+```ts
+function findClosestElementsBruteForce(arr: number[], k: number, x: number): number[] {
+  const sortedByDistance = [...arr].sort((a, b) => {
+    const distA = Math.abs(a - x);
+    const distB = Math.abs(b - x);
+    return distA !== distB ? distA - distB : a - b;
+  });
+  return sortedByDistance.slice(0, k).sort((a, b) => a - b);
+}
+```
+
+- **Time:** `O(n log n)` — dominated by the sort over the whole array, far more work than necessary given `arr` is already sorted.
+- **Space:** `O(n)` for the copied/sorted array.
+
+## 5. Identify the pattern and optimize
+
+Because `arr` is already sorted, the answer is always a **contiguous window** of size `k` somewhere in `arr` — no need to compare every element's distance individually. The only unknown is where that window's left edge sits, and that left edge can only be one of `n - k + 1` positions (`0` through `n - k`). Binary searching over those candidate left-edge positions works because the comparison `x - arr[mid]` vs `arr[mid + k] - x` is monotonic: if the element just before the window (`arr[mid]`) is farther from `x` than the element just after it (`arr[mid + k]`), the window should shift right; otherwise it should stay or shift left. This turns an `O(n log n)` sort into an `O(log(n - k))` binary search plus an `O(k)` slice to build the result.
+
+## 6. Code it
+
+```ts
+function findClosestElements(arr: number[], k: number, x: number): number[] {
+  let low = 0;
+  let high = arr.length - k;
+
+  while (low < high) {
+    const mid = low + Math.floor((high - low) / 2);
+
+    if (x - arr[mid] > arr[mid + k] - x) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+
+  return arr.slice(low, low + k);
+}
+```
+
+## 7. Test it manually
+
+- `arr = [1,2,3,4,5,6,7], k = 3, x = 5` → traced in step 3 → `[4,5,6]` ✓
+- `arr = [1,2,3,4,5], k = 4, x = 3` → `low=0,high=1`; `mid=0`, `3-1=2` vs `arr[4]-3=2`, `2>2` false → `high=0` → `slice(0,4)=[1,2,3,4]` ✓
+- `arr = [1,2,3,4,5], k = 4, x = -1` → `low=0,high=1`; `mid=0`, `-1-1=-2` vs `arr[4]-(-1)=6`, `-2>6` false → `high=0` → `slice(0,4)=[1,2,3,4]` ✓ (window pinned to the left since `x` is below every element)
+- `arr = [1,2,3,4,5], k = 5, x = 3` → `low=0,high=0` → loop doesn't run → `slice(0,5)=[1,2,3,4,5]` ✓ (`k` equals the array length)
+- `arr = [1,1,2,3,4,5], k = 2, x = 1` (tie-breaking case) → window must prefer the smaller values on ties → binary search converges to `low=0` → `slice(0,2)=[1,1]` ✓
+
+## 8. Review and log
+
+- **Approach used:** binary search over the window's possible left-edge positions, using the monotonic comparison between the element just outside each end of the window to decide which direction to shift.
+- **Mistake to watch for:** comparing `|x - arr[mid]|` and `|x - arr[mid+k]|` with absolute values (as you might instinctively do for "distance") breaks the monotonicity the binary search relies on — since `arr` is sorted, `arr[mid] <= x`'s position relative to the window is already implicit, and the correct comparison is the un-absolute-valued `x - arr[mid]` vs `arr[mid + k] - x`, which also naturally encodes the "prefer smaller value on tie" rule.
+- **Recurring pattern to log:** "binary search for a sliding window's edge instead of every possible window" generalizes to any problem where the valid answer is a contiguous range in a sorted/monotonic structure and only the window's boundary needs to be located — similar in spirit to [[find-minimum-in-rotated-sorted-array]] and [[find-peak-element]]'s boundary-seeking binary searches.
+
+## Complexity
+
+- **Time:** `O(log(n - k) + k)` — binary search over the candidate left-edge positions, plus `O(k)` to slice out the final window.
+- **Space:** `O(k)` — the returned result array.
