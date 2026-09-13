@@ -1,0 +1,131 @@
+---
+title: Find the Index of the First Occurrence in a String
+difficulty: Medium
+pattern: [String, Two Pointers, KMP]
+date: 2026-09-13
+problemUrl: https://leetcode.com/problems/find-the-index-of-the-first-occurrence-in-a-string/description/
+timeComplexity: O(n + m)
+spaceComplexity: O(m)
+summary: Implement strStr() — first with brute-force sliding comparison, then with KMP using a prefix-function failure table to avoid re-scanning haystack characters.
+---
+
+## 1. Restate the problem
+
+Given two strings `haystack` and `needle`, return the index of the first occurrence of `needle` in `haystack`, or `-1` if `needle` is not part of `haystack`.
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `haystack`, `needle` — strings with `1 <= haystack.length, needle.length <= 10^4`, lowercase English letters.
+- **Output:** index (0-based) of the first match, or `-1`.
+- **Constraints noted:**
+  - `needle` may be longer than `haystack` → automatically `-1`.
+  - `needle` could match right at the start (`index 0`) or exactly at the end.
+  - `needle` with repeated prefixes (e.g. `"aaab"`) causes brute force to redo work and is exactly what KMP is designed to avoid.
+  - Only one occurrence needs to be found — the first.
+
+## 3. Work a small example by hand
+
+`haystack = "sadbutsad"`, `needle = "sad"`
+
+| start index | comparison | result |
+|---|---|---|
+| 0 | `"sad"` vs `"sad"` | match → return `0` |
+
+`haystack = "leetcode"`, `needle = "leeto"` → compares `"leetc"` vs `"leeto"`, mismatches at index 4 (`c` vs `o`), no other start works → return `-1`.
+
+## 4. Brute force first
+
+At every possible starting index in `haystack`, compare characters against `needle` one by one; stop at the first mismatch and try the next start.
+
+```ts
+function strStrBruteForce(haystack: string, needle: string): number {
+  const n = haystack.length;
+  const m = needle.length;
+
+  for (let i = 0; i <= n - m; i++) {
+    let j = 0;
+    while (j < m && haystack[i + j] === needle[j]) {
+      j++;
+    }
+    if (j === m) return i;
+  }
+
+  return -1;
+}
+```
+
+- **Time:** `O(n * m)` — worst case (e.g. `haystack = "aaaa...a"`, `needle = "aaab"`) re-compares almost the whole needle at every start position.
+- **Space:** `O(1)`.
+
+## 5. Identify the pattern and optimize
+
+The brute force wastes work because after a partial match followed by a mismatch, it throws away all knowledge of what it already matched and restarts the needle from scratch at the next position. KMP fixes this by precomputing a **prefix function** (`lps` — "longest proper prefix that is also a suffix") for `needle`. `lps[k]` tells you, if a mismatch happens after matching `k` characters, the longest prefix of `needle` that is already guaranteed to match — so you can resume comparing from there instead of restarting. This lets the needle pointer only ever move forward (or stay via the fallback), giving a single `O(n + m)` pass instead of `O(n * m)`.
+
+## 6. Code it
+
+```ts
+function buildLPS(needle: string): number[] {
+  const m = needle.length;
+  const lps = new Array(m).fill(0);
+  let len = 0; // length of the previous longest prefix-suffix
+  let i = 1;
+
+  while (i < m) {
+    if (needle[i] === needle[len]) {
+      len++;
+      lps[i] = len;
+      i++;
+    } else if (len > 0) {
+      len = lps[len - 1];
+    } else {
+      lps[i] = 0;
+      i++;
+    }
+  }
+
+  return lps;
+}
+
+function strStrKMP(haystack: string, needle: string): number {
+  const n = haystack.length;
+  const m = needle.length;
+  if (m === 0) return 0;
+
+  const lps = buildLPS(needle);
+  let i = 0; // pointer into haystack
+  let j = 0; // pointer into needle
+
+  while (i < n) {
+    if (haystack[i] === needle[j]) {
+      i++;
+      j++;
+      if (j === m) return i - j;
+    } else if (j > 0) {
+      j = lps[j - 1];
+    } else {
+      i++;
+    }
+  }
+
+  return -1;
+}
+```
+
+## 7. Test it manually
+
+- `haystack = "sadbutsad"`, `needle = "sad"` → `lps = [0,0,0]`; matches at `i=0..2`, `j` reaches `3` → return `0` ✓
+- `haystack = "leetcode"`, `needle = "leeto"` → `lps = [0,0,0,0,0]` (no repeated prefix); mismatch at `c` vs `o` (`i=4,j=4`) falls back to `j=0`, continues, never fully matches → return `-1` ✓
+- `haystack = "aaaaab"`, `needle = "aaab"` → `lps = [0,1,2,0]`; brute force would redo comparisons on every `a`, KMP reuses `lps` to skip re-checking already-matched `a`s → returns `2` ✓
+- `haystack = "a"`, `needle = "a"` → single-char match → return `0` ✓
+- `needle.length > haystack.length` → loop condition/bounds prevent any match → return `-1` ✓
+
+## 8. Review and log
+
+- **Approach used:** brute-force sliding comparison first to establish correctness, then KMP with a precomputed prefix (`lps`) table so the haystack pointer never backtracks.
+- **Mistake to watch for:** in `buildLPS`, forgetting that on a mismatch with `len > 0` you fall back to `lps[len - 1]` (not `0`) — resetting straight to `0` loses partial-prefix information and degrades KMP back toward brute force.
+- **Recurring pattern to log:** "precompute a failure/fallback table so a pointer never needs to move backward" is the core idea behind KMP and reappears in other substring/pattern-matching problems (e.g. `repeated-substring-pattern`, `shortest-palindrome`).
+
+## Complexity
+
+- **Brute force — Time:** `O(n * m)`, **Space:** `O(1)`.
+- **KMP — Time:** `O(n + m)` — linear preprocessing of `needle` plus a single linear scan of `haystack`. **Space:** `O(m)` for the `lps` table.
