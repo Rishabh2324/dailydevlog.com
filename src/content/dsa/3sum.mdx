@@ -1,0 +1,132 @@
+---
+title: 3Sum
+difficulty: Medium
+pattern: [Arrays, Sorting, Two Pointers]
+date: 2026-09-16
+problemUrl: https://leetcode.com/problems/3sum/description/
+timeComplexity: O(n^2)
+spaceComplexity: O(1)
+summary: Find all unique triplets that sum to zero by sorting the array and, for each fixed first element, using a two-pointer scan on the remainder while skipping duplicate values.
+---
+
+## 1. Restate the problem
+
+Given an integer array `nums`, return all the triplets `[nums[i], nums[j], nums[k]]` such that `i != j`, `i != k`, `j != k`, and `nums[i] + nums[j] + nums[k] == 0`. The result must not contain duplicate triplets (the same combination of values, in any order, should only appear once).
+
+## 2. Inputs, outputs, edge cases
+
+- **Input:** `nums` — an integer array with `3 <= nums.length <= 3000`, `-10^5 <= nums[i] <= 10^5`.
+- **Output:** an array of triplets (each itself an array of three numbers), no duplicate triplets, any order.
+- **Constraints noted:**
+  - Fewer than 3 elements → no triplets possible (though the constraint guarantees `length >= 3`).
+  - Duplicate values in the input (e.g. multiple zeros) must not produce duplicate triplets in the output.
+  - All-positive or all-negative arrays → no valid triplet, return `[]`.
+  - Triplets can reuse the *value* `0` multiple times within one triplet (e.g. `[0,0,0]`) as long as they come from distinct indices.
+
+## 3. Work a small example by hand
+
+`nums = [-1,0,1,2,-1,-4]`
+
+Sorted: `[-4,-1,-1,0,1,2]`
+
+| i (nums[i]) | left, right | sum | action |
+|---|---|---|---|
+| 0 (-4) | 1(-1), 5(2) | -3 | sum < 0 → left++ |
+| 0 (-4) | 2(-1), 5(2) | -3 | sum < 0 → left++ |
+| 0 (-4) | 3(0), 5(2) | -2 | sum < 0 → left++ |
+| 0 (-4) | 4(1), 5(2) | -1 | sum < 0 → left++, left==right, stop for i=0 |
+| 1 (-1) | 2(-1), 5(2) | 0 | **match `[-1,-1,2]`** → left++, right-- |
+| 1 (-1) | 3(0), 4(1) | 0 | **match `[-1,0,1]`** → left++, right--, left>=right, stop |
+| 2 (-1) | skip (duplicate of `nums[1]`) | — | — |
+| 3 (0) | 4(1), 5(2) | 3 | sum > 0 → right--, left==right, stop |
+
+Result: `[[-1,-1,2],[-1,0,1]]` → matches the expected output.
+
+## 4. Brute force first
+
+Check every triplet of distinct indices, using a set to dedupe triplets (sorting each triplet before adding to make equal combinations collide).
+
+```ts
+function threeSumBruteForce(nums: number[]): number[][] {
+  const seen = new Set<string>();
+  const result: number[][] = [];
+
+  for (let i = 0; i < nums.length; i++) {
+    for (let j = i + 1; j < nums.length; j++) {
+      for (let k = j + 1; k < nums.length; k++) {
+        if (nums[i] + nums[j] + nums[k] === 0) {
+          const triplet = [nums[i], nums[j], nums[k]].sort((a, b) => a - b);
+          const key = triplet.join(',');
+          if (!seen.has(key)) {
+            seen.add(key);
+            result.push(triplet);
+          }
+        }
+      }
+    }
+  }
+
+  return result;
+}
+```
+
+- **Time:** `O(n^3)` for the triple-nested loop (plus dedupe overhead).
+- **Space:** `O(n)` for the `seen` set, on top of the output.
+
+## 5. Identify the pattern and optimize
+
+This is **sort + two pointers**, an extension of the two-sum-on-a-sorted-array pattern. First sort `nums` in `O(n log n)`. Then fix the first element `nums[i]` by iterating `i` from `0` to `n - 3`, and for the remaining subarray `nums[i+1..n-1]` (which is also sorted), run a two-pointer scan: `left = i + 1`, `right = n - 1`. If `nums[i] + nums[left] + nums[right] < 0`, the sum is too small so move `left++`; if `> 0`, move `right--`; if `== 0`, record the triplet and move both pointers inward. Sorting makes duplicates adjacent, so skipping over equal values for `i`, `left`, and `right` (after recording a match) prevents duplicate triplets without needing a set. This turns the innermost `O(n)` search into a single linear scan instead of nested loops, dropping the total from `O(n^3)` to `O(n^2)`.
+
+## 6. Code it
+
+```ts
+function threeSum(nums: number[]): number[][] {
+  const sorted = [...nums].sort((a, b) => a - b);
+  const result: number[][] = [];
+  const n = sorted.length;
+
+  for (let i = 0; i < n - 2; i++) {
+    if (sorted[i] > 0) break;
+    if (i > 0 && sorted[i] === sorted[i - 1]) continue;
+
+    let left = i + 1;
+    let right = n - 1;
+
+    while (left < right) {
+      const sum = sorted[i] + sorted[left] + sorted[right];
+
+      if (sum < 0) {
+        left++;
+      } else if (sum > 0) {
+        right--;
+      } else {
+        result.push([sorted[i], sorted[left], sorted[right]]);
+        left++;
+        right--;
+        while (left < right && sorted[left] === sorted[left - 1]) left++;
+        while (left < right && sorted[right] === sorted[right + 1]) right--;
+      }
+    }
+  }
+
+  return result;
+}
+```
+
+## 7. Test it manually
+
+- `nums = [-1,0,1,2,-1,-4]` → sorted `[-4,-1,-1,0,1,2]`, traced by hand above → returns `[[-1,-1,2],[-1,0,1]]` ✓.
+- `nums = [0,1,1]` → sorted `[0,1,1]`; `i=0 (0)`, `left=1(1), right=2(1)`, sum `2 > 0` → `right--`, loop ends → returns `[]` ✓.
+- `nums = [0,0,0]` → sorted `[0,0,0]`; `i=0 (0)`, `left=1(0), right=2(0)`, sum `0` → push `[0,0,0]`, then pointer-dedup loops push `left` and pull `right` past each other → returns `[[0,0,0]]` ✓.
+- `nums = [-2,0,0,2,2]` → sorted `[-2,0,0,2,2]`; `i=0(-2)`, `left=1(0), right=4(2)`, sum `0` → push `[-2,0,2]`; dedup skips the second `0` and second `2` → returns `[[-2,0,2]]` ✓.
+
+## 8. Review and log
+
+- **Approach used:** sort the array, fix one element per outer loop, and two-pointer scan the rest — turning repeated linear searches into a single inward-shrinking pass.
+- **Mistake to watch for:** forgetting the duplicate-skip on `i`, `left`, *and* `right` — skipping only one of them still lets identical triplets slip into the result, and skipping `i` incorrectly (e.g. before checking if a match was found) can also miss valid triplets.
+- **Recurring pattern to log:** "sort first, then fix outer elements and two-pointer the rest" generalizes to `4Sum`, `3Sum Closest`, and any k-sum variant — each extra fixed element just adds another outer loop around the same two-pointer core.
+
+## Complexity
+
+- **Brute force — Time:** `O(n^3)`, **Space:** `O(n)`.
+- **Sort + two pointer — Time:** `O(n^2)` — `O(n log n)` sort plus `O(n)` outer loop times `O(n)` two-pointer scan. **Space:** `O(1)` extra (excluding the output and the sort's own space).
