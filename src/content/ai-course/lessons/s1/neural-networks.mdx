@@ -1,0 +1,477 @@
+---
+topic: '1.1.4'
+date: 2026-09-17
+summary: A neural network is function composition — layers of weighted sums, each followed by a small non-linear function — and that non-linearity is what lets stacked layers compute things one layer can't.
+estimatedMinutes: 30
+tags: [Foundations, Neural Networks]
+prerequisites: ['1.1.2']
+references:
+  - title: Neural Networks, Chapter 1 — But what is a neural network?
+    source: 3Blue1Brown
+    url: https://www.3blue1brown.com/lessons/neural-networks
+    tier: must
+    level: Beginner
+    why: The clearest visual picture of neurons, layers, weights and biases. It uses digit recognition, so it complements the tiny hand-built networks in this lesson.
+  - title: Neural networks (Machine Learning Crash Course module)
+    source: Google for Developers
+    url: https://developers.google.com/machine-learning/crash-course/neural-networks
+    tier: must
+    level: Beginner
+    why: Covers nodes, hidden layers and activation functions (ReLU, sigmoid, tanh) with interactive exercises that show why linear layers alone aren't enough.
+  - title: TensorFlow Playground
+    source: Google (TensorFlow)
+    url: https://playground.tensorflow.org/
+    tier: should
+    level: Beginner
+    why: Train a small network in the browser. Pick the XOR-like dataset, then toggle between linear and ReLU activations and add hidden neurons to watch the decision boundary change.
+  - title: Neural Networks and Deep Learning, Chapter 1
+    source: Michael Nielsen
+    url: http://neuralnetworksanddeeplearning.com/chap1.html
+    tier: optional
+    level: Intermediate
+    why: A free book that builds from perceptrons to sigmoid neurons with gentle math. Chapter 4 gives a visual argument for why networks can approximate almost any function.
+---
+
+import Callout from '../../../../components/ai-course/Callout.astro';
+import Answer from '../../../../components/ai-course/Answer.astro';
+
+## 1. Why does this exist?
+
+In lesson 1.1.2 you learned that machine learning means choosing a **family of functions** and letting data pick
+one member. The family there was tiny: "is `secondsToFill` below some threshold `t`?" One number to fit. It couldn't
+tell an autofill human from a bot, because the family simply couldn't express that.
+
+Real problems need families that can express almost anything: "is this image a cat?", "what word comes next?".
+You can't enumerate those by hand. **Neural networks are a family of functions that is flexible enough for nearly
+any input-to-output mapping, yet built from one boring, repeated part.** Every model in this course, from a spam
+classifier to an LLM, is built from that part.
+
+## 2. What problem does it solve?
+
+It solves **"I need a very expressive function, but I still want it to be a pile of adjustable numbers that a
+generic algorithm can tune."**
+
+- A threshold or a single weighted sum can only draw **one straight line** through the data.
+- Hand-written feature logic ("fast AND few keystrokes, unless...") grows without end.
+- A neural network composes many simple units, so it can bend decision boundaries, combine features and build
+  intermediate concepts. It stays uniform enough that one training algorithm (lessons 1.1.7–1.1.8) works for all of it.
+
+## 3. Simple explanation
+
+A **neuron** is a tiny function:
+
+1. multiply each input by a **weight** (how much that input matters, and in which direction),
+2. add them up and add a **bias** (a baseline offset),
+3. pass the result through an **activation function**, a small non-linear squash or cut-off.
+
+```ts
+output = activation(w1 * x1 + w2 * x2 + ... + bias)
+```
+
+A **layer** is several neurons that all read the same inputs, each with its own weights. A **network** feeds one
+layer's outputs into the next layer's inputs. That's it: a neural network is **function composition**,
+`output(hidden(input))`.
+
+The first layer reads raw features. The **hidden** layers compute intermediate signals nobody labeled, like "this
+was filled suspiciously fast". The **output** layer turns those into the answer.
+
+<Callout type="fact">
+  Despite the name, artificial neurons are a loose mathematical abstraction. Modern networks are best understood as
+  composed functions and matrix arithmetic, not as models of the brain.
+</Callout>
+
+## 4. Mental model
+
+Think of a **middleware pipeline** where every stage has the same shape.
+
+```ts
+const network = (x) => outputLayer(hiddenLayer(x));
+const layer   = (x) => activation(weights · x + biases);
+```
+
+Each stage turns a vector of numbers into another vector of numbers. The weights and biases are the stage's
+**config**. The activation is a fixed, tiny piece of code. Change the config and the same pipeline computes a
+different function. Training (later lessons) is just a way of finding good config.
+
+The one rule that makes the pipeline worth having: **each stage must bend its input a little (the activation).**
+Without that, the whole pipeline collapses into a single stage (section 5).
+
+## 5. How it works internally
+
+**Forward pass.** To run a network ("inference"), you go layer by layer: compute every neuron's weighted sum
+plus bias, apply the activation, and hand the resulting vector to the next layer. Nothing else happens. There are
+no loops over data, no branching, just arithmetic.
+
+**Activations you'll meet:**
+
+| Name | Formula | Output range | Where it's used |
+|---|---|---|---|
+| ReLU | `max(0, z)` | 0 to ∞ | Default for hidden layers. Cheap, and "off below zero" |
+| Sigmoid | `1 / (1 + e^-z)` | 0 to 1 | Output for yes/no probabilities, like `P(bot)` |
+| Softmax | `e^zi / Σ e^zj` over a vector | each 0 to 1, sum to 1 | Output for picking one of many classes, or the next token |
+| Identity | `z` | any number | Output for predicting a plain number (a price, a duration) |
+
+Sigmoid squashes any score into a probability: `sigmoid(0) = 0.5`, `sigmoid(5) ≈ 0.9933`. Softmax does the same for
+a whole vector of scores. `softmax([2, 1, 0.1])` is `[0.659, 0.242, 0.099]`. You'll see softmax again at the end of
+every LLM (lesson 1.4.3), where it turns scores for every token in the vocabulary into next-token probabilities.
+
+**Why activations are non-negotiable.** A layer without an activation is `W·x + b`, a linear function. Feed one
+linear function into another and you get a linear function again: `W2·(W1·x + b1) + b2 = (W2·W1)·x + (W2·b1 + b2)`.
+So a hundred stacked linear layers compute exactly what **one** linear layer can. The code example checks this with
+numbers. The non-linearity is what makes depth buy you anything.
+
+**XOR: the classic proof.** XOR outputs 1 when exactly one input is 1. Plot the four points and you'll see no
+single straight line separates the 1s from the 0s, so no single neuron can compute it. Two ReLU neurons can:
+
+- `h1 = relu(x1 + x2)` counts how many inputs are on,
+- `h2 = relu(x1 + x2 - 1)` fires only when **both** are on,
+- `out = h1 - 2·h2` subtracts the "both" case away.
+
+The hidden layer invented a useful intermediate concept, "both on", that wasn't in the input. That's what hidden
+layers do, at much larger scale, in every deep model.
+
+<Callout type="fact" title="Universal approximation">
+  A network with one hidden layer and enough neurons can approximate any reasonable continuous function as closely
+  as you like. That's a statement about what the family can *express*. It says nothing about whether training will
+  find those weights, or how many neurons you'd need. Depth tends to make it far more efficient in practice.
+</Callout>
+
+<Callout type="note">
+  In this lesson every weight is **set by hand** so you can follow the arithmetic. Nobody does that in practice.
+  Lessons 1.1.6–1.1.8 show how the weights are learned from data.
+</Callout>
+
+## 6. Visual explanation
+
+A 2-2-1 network for the bot detector from lesson 1.1.2:
+
+```
+ inputs            hidden layer (ReLU)          output (sigmoid)
+
+ secondsToFill ──(w=-1)──▶ [h1 "filled fast"]  b=5
+                                  │
+                                  │ (w=1)
+                                  ▼
+                               [ out ]  b=-5 ──▶ P(bot)
+                                  ▲
+                                  │ (w=1)
+                                  │
+ keystrokes ─────(w=-1)──▶ [h2 "barely typed"] b=8
+
+ (the zero-weight links secondsToFill→h2, keystrokes→h1 not shown)
+```
+
+Forward pass for a script bot, `secondsToFill = 2.0`, `keystrokes = 1`:
+
+```
+h1  = relu(-1·2.0 + 0·1 + 5)  = relu(3)   = 3
+h2  = relu( 0·2.0 - 1·1 + 8)  = relu(7)   = 7
+z   = 1·3 + 1·7 - 5           = 5
+out = sigmoid(5)                          = 0.9933   → bot
+```
+
+Why linear stacking collapses:
+
+```
+  x ──▶ [ W1·x + b1 ] ──▶ [ W2·h + b2 ] ──▶ y
+                    ║  same function as
+  x ──▶ [ (W2·W1)·x + (W2·b1 + b2) ] ─────▶ y
+
+  x ──▶ [ W1·x + b1 ] ─▶ relu ─▶ [ W2·h + b2 ] ─▶ y
+                    ║  can NOT be merged: relu bends it
+```
+
+XOR, and the one straight line that never works:
+
+```
+ x2
+  1 │  (0,1)=1        (1,1)=0
+    │
+  0 │  (0,0)=0        (1,0)=1
+    └──────────────────────────  x1
+       0               1
+
+ Any single line leaves a 1 on the same side as a 0.
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Neural network equivalent |
+|---|---|
+| Function composition, `compose(f, g, h)` | Layers applied in sequence |
+| Middleware / a pipeline of transforms | Each layer maps a vector to a vector |
+| `Array.map` over records | A layer applies the same neurons to every input example |
+| Config values that change behavior without a deploy | Weights and biases (lesson 1.1.5) |
+| A pure function | The forward pass: same weights and inputs give the same output |
+| Derived columns in a SQL view | Hidden neurons: intermediate values computed from raw columns |
+| A shader running on every pixel | Why this math runs so well on GPUs (lesson 1.1.12) |
+
+For backend engineers, the forward pass is a **CPU- or GPU-bound, stateless computation** with a fixed cost per
+request, set by the number of weights. For frontend engineers, small networks like these can run directly in
+the browser. The math is identical, and only the size changes.
+
+## 8. Code example
+
+Everything from this lesson in one dependency-free file. Run it with `node --experimental-strip-types nn.ts`
+(Node 22.6+).
+
+```ts
+type Vector = number[];
+type Layer = { weights: number[][]; biases: Vector }; // weights[neuron][input]
+type Activation = (z: number) => number;
+
+const relu: Activation = (z) => Math.max(0, z);
+const sigmoid: Activation = (z) => 1 / (1 + Math.exp(-z));
+const identity: Activation = (z) => z;
+
+// One neuron: weighted sum + bias, then an activation.
+const neuron = (w: Vector, b: number, x: Vector, act: Activation) =>
+  act(w.reduce((sum, wi, i) => sum + wi * x[i], b));
+
+// A layer is many neurons reading the same inputs.
+const dense = (layer: Layer, x: Vector, act: Activation): Vector =>
+  layer.weights.map((w, j) => neuron(w, layer.biases[j], x, act));
+
+// --- 1) A hand-set 2-2-1 bot detector. Inputs: [secondsToFill, keystrokes]
+const hidden: Layer = {
+  weights: [
+    [-1, 0], // h1 "filled fast":   grows as seconds drop below 5
+    [0, -1], // h2 "barely typed":  grows as keystrokes drop below 8
+  ],
+  biases: [5, 8],
+};
+const output: Layer = { weights: [[1, 1]], biases: [-5] };
+
+const botNet = (x: Vector) => dense(output, dense(hidden, x, relu), sigmoid)[0];
+
+const signups: { name: string; x: Vector }[] = [
+  { name: 'script bot    ', x: [2.0, 1] },
+  { name: 'careful bot   ', x: [4.4, 2] },
+  { name: 'autofill human', x: [3.8, 12] },
+  { name: 'typing human  ', x: [14.0, 40] },
+];
+for (const { name, x } of signups) {
+  const h = dense(hidden, x, relu);
+  console.log(name, 'hidden =', h.map((v) => +v.toFixed(2)), 'P(bot) =', botNet(x).toFixed(4));
+}
+
+// --- 2) Stacking linear layers without activations collapses to one layer.
+const L1: Layer = { weights: [[1, 2], [3, -1]], biases: [0.5, -1] };
+const L2: Layer = { weights: [[2, -1]], biases: [0.5] };
+const merged: Layer = {
+  weights: [[2 * 1 + -1 * 3, 2 * 2 + -1 * -1]], // W2 · W1
+  biases: [2 * 0.5 + -1 * -1 + 0.5],            // W2 · b1 + b2
+};
+for (const x of [[1, 1], [2, -3], [0.5, 4]]) {
+  const stacked = dense(L2, dense(L1, x, identity), identity)[0];
+  const single = dense(merged, x, identity)[0];
+  console.log('x =', x, 'two layers =', stacked, 'one layer =', single);
+}
+console.log('merged layer:', merged);
+
+// --- 3) XOR: no single neuron can do it, two ReLU neurons can.
+const xor: { x: Vector; y: number }[] = [
+  { x: [0, 0], y: 0 },
+  { x: [0, 1], y: 1 },
+  { x: [1, 0], y: 1 },
+  { x: [1, 1], y: 0 },
+];
+const step: Activation = (z) => (z > 0 ? 1 : 0);
+
+let tried = 0;
+let bestCorrect = 0;
+const grid = Array.from({ length: 41 }, (_, i) => -2 + i * 0.1);
+for (const w1 of grid) for (const w2 of grid) for (const b of grid) {
+  tried++;
+  const correct = xor.filter(({ x, y }) => neuron([w1, w2], b, x, step) === y).length;
+  bestCorrect = Math.max(bestCorrect, correct);
+}
+console.log(`single neuron: tried ${tried} settings, best = ${bestCorrect}/4 correct`);
+
+const xorHidden: Layer = { weights: [[1, 1], [1, 1]], biases: [0, -1] };
+const xorOut: Layer = { weights: [[1, -2]], biases: [0] };
+for (const { x, y } of xor) {
+  const h = dense(xorHidden, x, relu);
+  const out = dense(xorOut, h, identity)[0];
+  console.log('XOR', x, '-> hidden', h, '-> out', out, 'expected', y);
+}
+
+// --- 4) Softmax preview: turn several scores into probabilities.
+const softmax = (z: Vector) => {
+  const exps = z.map((v) => Math.exp(v - Math.max(...z))); // shift for numeric safety
+  const total = exps.reduce((a, b) => a + b, 0);
+  return exps.map((e) => e / total);
+};
+console.log('softmax([2, 1, 0.1]) =', softmax([2, 1, 0.1]).map((p) => +p.toFixed(3)));
+```
+
+Output:
+
+```
+script bot     hidden = [ 3, 7 ] P(bot) = 0.9933
+careful bot    hidden = [ 0.6, 6 ] P(bot) = 0.8320
+autofill human hidden = [ 1.2, 0 ] P(bot) = 0.0219
+typing human   hidden = [ 0, 0 ] P(bot) = 0.0067
+x = [ 1, 1 ] two layers = 6.5 one layer = 6.5
+x = [ 2, -3 ] two layers = -14.5 one layer = -14.5
+x = [ 0.5, 4 ] two layers = 22 one layer = 22
+merged layer: { weights: [ [ -1, 5 ] ], biases: [ 2.5 ] }
+single neuron: tried 68921 settings, best = 3/4 correct
+XOR [ 0, 0 ] -> hidden [ 0, 0 ] -> out 0 expected 0
+XOR [ 0, 1 ] -> hidden [ 1, 0 ] -> out 1 expected 1
+XOR [ 1, 0 ] -> hidden [ 1, 0 ] -> out 1 expected 1
+XOR [ 1, 1 ] -> hidden [ 2, 1 ] -> out 0 expected 0
+softmax([2, 1, 0.1]) = [ 0.659, 0.242, 0.099 ]
+```
+
+What to take from it:
+
+- **The autofill human is finally handled.** Time alone couldn't separate them in lesson 1.1.2. Here `h2` is 0
+  because they pressed 12 keys, so `P(bot)` drops to 0.0219. The hidden layer combined two features into a decision.
+- **Two linear layers equal one.** Three different inputs give identical outputs from the stacked and merged
+  versions.
+- **One neuron tops out at 3 of 4 on XOR**, across 68,921 weight settings. That's not bad luck in the search: no
+  straight line exists. Two ReLU neurons get all four.
+
+## 9. Real-world example
+
+**Handwritten digit recognition** is the textbook case, and it's still how many engineers first meet networks.
+Each 28×28 grayscale image becomes 784 input numbers. A hidden layer of a hundred or so ReLU neurons feeds 10 output
+neurons with softmax, one per digit. Such a small network can recognize most test digits correctly.
+
+The same shape shows up inside modern systems:
+
+- **Ranking and recommendation** models feed user and item features through stacks of dense layers to predict a
+  click probability with a sigmoid output.
+- **Every transformer block** in an LLM contains a feed-forward sub-network, which is literally two dense layers
+  with a non-linearity between them (lesson 1.3.6).
+- **The final step of an LLM** is a dense layer producing one score per vocabulary token, followed by softmax.
+
+<Callout type="practice">
+  If you ever train a model yourself, start with a small dense network on well-chosen features as your baseline.
+  It often beats a complex architecture on tabular data, and it tells you whether the harder option is worth it.
+</Callout>
+
+## 10. Common mistakes
+
+- **Forgetting the activation.** Stacking dense layers with no non-linearity silently gives you a linear model,
+  however deep it looks.
+- **Using sigmoid in every hidden layer.** It flattens out for large positive or negative inputs, which makes deep
+  networks slow to train. ReLU and its variants are the usual default for hidden layers.
+- **Picking the wrong output activation.** Sigmoid for one yes/no answer, softmax for one of N classes, identity for a
+  plain number. Using softmax for multi-label tags ("urgent" *and* "billing") forces them to compete.
+- **Reading hidden neurons as clean human concepts.** The hand-set `h1 "filled fast"` is readable because a person
+  chose it. Learned neurons usually mix several signals and rarely have tidy names.
+- **Feeding raw, unscaled inputs.** A feature in milliseconds next to one in 0–1 lets the big one dominate the weighted
+  sum. Normalize inputs.
+- **Thinking "more layers" is always better.** More layers mean more parameters, more data and more compute, and they
+  don't fix bad features or bad labels.
+
+## 11. Limitations
+
+- **Expressive isn't the same as learnable.** Universal approximation guarantees the right weights exist, not that
+  training finds them or that you have enough data.
+- **Hard to inspect.** You can print every weight and still not know *why* a prediction happened. Interpretability is
+  an active research area.
+- **Dense layers ignore structure.** A plain dense network doesn't know that neighboring pixels or consecutive words
+  are related. Specialized architectures (CNNs, RNNs, transformers) add that structure.
+- **Outputs look confident even when wrong.** A sigmoid of 0.99 is a score, not a guarantee, and it can be badly
+  calibrated on inputs unlike the training data.
+
+## 12. When to use it
+
+- When the input-to-output relationship is too complex or interacting to write down, and you have (or can get) lots
+  of examples.
+- When inputs are raw and high-dimensional, such as pixels, audio or text, where hand-engineering features is hopeless.
+- As a **mental model** for every deep model you'll use as an API consumer: layers of learned weights, a
+  forward pass per request, and probabilities out of a softmax.
+
+## 13. When NOT to use it
+
+- When a rule or a threshold does the job. The bot detector in lesson 1.1.2 didn't need a network until a second feature
+  interacted with the first.
+- On small tabular datasets, where gradient-boosted trees or logistic regression are usually stronger, faster and
+  easier to explain.
+- When every decision must be explainable line by line, for regulatory or audit reasons.
+- When you can't collect enough labeled data for the network's size.
+
+## 14. Interview explanation (30 seconds)
+
+> A neural network is a composition of layers. Each neuron computes a weighted sum of its inputs plus a bias, then
+> applies a non-linear activation like ReLU. Layers feed into each other, and hidden layers build intermediate
+> features. The non-linearity is essential: without it, any stack of layers collapses into a single linear function,
+> which can't even compute XOR. At the output you pick an activation for the task: sigmoid for a probability,
+> softmax for choosing among classes. The weights and biases are what training learns.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start from machine learning as choosing a function family. A linear model, `w·x + b`, is a family that can only draw
+straight boundaries. A neural network is a richer family built by composition.
+
+The unit is the neuron: a dot product of weights and inputs, plus a bias, passed through an activation. A layer
+applies many neurons to the same input, which is a matrix multiply plus a bias vector, followed by an element-wise
+activation. A network chains layers. Inference is a forward pass: pure arithmetic, layer by layer.
+
+Then explain why activations matter, with the algebra: `W2(W1x + b1) + b2` is still a linear function of `x`, so depth
+without non-linearity is useless. Give XOR as the concrete case. Its classes aren't linearly separable, so one neuron
+fails, but two ReLU hidden neurons, one counting active inputs and one detecting "both", solve it exactly. That shows
+the role of hidden layers: they create intermediate representations that make the final decision easy.
+
+Compare activations. ReLU is the default hidden activation because it's cheap and trains well in deep networks.
+Sigmoid squashes to 0–1, so it fits a binary output. Softmax normalizes a vector of scores into a distribution,
+which is exactly what an LLM does over its vocabulary for the next token. Mention the universal approximation
+theorem as a statement about expressiveness, not about learnability.
+
+Close with engineering consequences. The forward pass is fixed-cost matrix arithmetic, which is why it parallelizes
+so well on GPUs. Model size is the number of weights and biases, which drives memory and latency. And the network is
+only as good as the weights that training finds, which is the topic of loss, gradient descent and backpropagation.
+
+## 16. Hands-on exercise
+
+Run the code example, then modify it:
+
+1. **Break the bot detector.** Find a `[secondsToFill, keystrokes]` pair for a plausible *human* that gets
+   `P(bot) > 0.5`. Then find a plausible *bot* that gets below 0.5. Adjust one weight or bias to fix one case, and
+   check you didn't break the four original signups.
+2. **Remove the non-linearity.** Swap `relu` for `identity` in the XOR hidden layer. What does the network output
+   for the four inputs now?
+3. **AND and OR.** Using the `neuron` function and `step` activation, hand-pick weights for a single neuron that
+   computes AND, and another for OR.
+
+<Answer label="What you should notice">
+  In step 1, a fast typist with a password manager (say `[4.5, 3]`) gives `h1 = 0.5`, `h2 = 5`, `z = 0.5` and
+  `P(bot) ≈ 0.62`, a false positive. Every fix trades one error for another, which is exactly the tuning problem that
+  training automates. In step 2, the outputs become `2, 1, 1, 0`: the whole network collapses to the single linear
+  function `2 - (x1 + x2)`, and it can no longer compute XOR. In step 3, AND works with
+  weights `[1, 1]` and bias `-1.5`, and OR with `[1, 1]` and bias `-0.5`. Both are linearly separable, which is why a
+  single neuron is enough for them but not for XOR.
+</Answer>
+
+## 17. Challenge
+
+Build a tiny **hand-wired digit recognizer** for a 3×3 grid, with no training.
+
+1. Represent each image as 9 pixels, 0 or 1. Define four shapes: a vertical bar, a horizontal bar, a cross (both
+   bars) and an X (both diagonals). Write them, plus two noisy variants of each with one pixel flipped.
+2. Design a hidden layer of **feature detectors** by hand: one neuron each for "middle column on", "middle row on",
+   "main diagonal on" and "anti-diagonal on". Choose weights so each neuron's output is large only when its line is
+   present.
+3. Add an output layer with four neurons, one per shape, followed by `softmax`. Choose weights so that "cross" needs
+   *both* the column and row detectors, and "vertical bar" is penalized when the row detector fires.
+4. Print the probability vector for all 12 images, and count how many the network classifies correctly.
+5. In three bullets, explain which part of your network plays the role of "learned features", what a network with
+   784 inputs would need to discover for real digits, and why nobody wires those by hand.
+
+<Answer label="Hints">
+  A line detector works well with weight `+1` on its three pixels, `-0.5` on the other six, a bias of `-1.5` and
+  ReLU. A clean line gives 1.5, a cross gives 0.5 on both the column and row detectors, and the diagonal detectors
+  stay at 0 for bars and crosses. Watch out: a harsher `-1` penalty with bias `-2` looks tidier but outputs 0 for the
+  cross, because the other bar's pixels cancel the line. The center pixel belongs to all four lines, so give the
+  output neurons negative weights on detectors that should be absent. Noisy variants that flip the center pixel are
+  the hardest. Expect to hand-tune several times,
+  and notice how quickly that gets painful with only 9 inputs.
+</Answer>
+
+## 18. References
+
+The curated reading for this lesson is below, grouped into must read, should read and optional.

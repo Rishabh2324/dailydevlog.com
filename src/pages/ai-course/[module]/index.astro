@@ -1,0 +1,42 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import TopicList from '../../../components/ai-course/TopicList.astro';
+import { COURSE_HREF, getCourse, moduleSlug } from '../../../lib/ai-course';
+
+export async function getStaticPaths() {
+  const seasons = await getCourse();
+  return seasons.flatMap((season) =>
+    season.modules.map((mod) => ({ params: { module: moduleSlug(mod.id) }, props: { season, mod } }))
+  );
+}
+
+const { season, mod } = Astro.props;
+const published = mod.topics.filter((t) => t.lesson).length;
+---
+
+<BaseLayout title={`Module ${mod.id}: ${mod.title}`} description={mod.summary}>
+  <a href={COURSE_HREF} class="text-sm font-medium text-brand-green-dark hover:underline dark:text-brand-green">
+    &larr; AI Engineering course
+  </a>
+  <header class="mt-4 border-b border-hairline pb-6">
+    <p class="text-xs font-semibold tracking-wide text-stone uppercase">
+      Season {season.number} · {season.title}
+    </p>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+      <span class="text-stone">{mod.id}</span>
+      {mod.title}
+    </h1>
+    <p class="mt-3 max-w-2xl text-slate">{mod.summary}</p>
+    <p class="mt-3 text-sm text-stone">
+      {published} of {mod.topics.length} lessons published
+      {mod.frontend && <span> · part of the AI for Frontend Engineers track</span>}
+    </p>
+  </header>
+
+  <section class="mt-8">
+    <h2 class="text-xl font-semibold tracking-tight text-ink">Lessons</h2>
+    <div class="mt-3">
+      <TopicList topics={mod.topics} />
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,48 @@
+---
+import Badge from '../Badge.astro';
+import { LEVELS, type Topic } from '../../lib/ai-course';
+
+interface Props {
+  topics: Topic[];
+  currentId?: string;
+  compact?: boolean;
+}
+
+const { topics, currentId, compact = false } = Astro.props;
+---
+
+<ol class:list={['divide-y divide-hairline-soft', compact ? 'text-sm' : 'text-[15px]']}>
+  {
+    topics.map((topic) => {
+      const current = topic.id === currentId;
+      return (
+        <li class:list={['flex items-start gap-3', compact ? 'py-2' : 'py-2.5']}>
+          <span class="w-12 shrink-0 pt-px font-mono text-xs text-stone">{topic.id}</span>
+          <span class="min-w-0 flex-1">
+            {topic.lesson ? (
+              <a
+                href={topic.href}
+                aria-current={current ? 'page' : undefined}
+                class:list={[
+                  'font-medium hover:underline',
+                  current ? 'text-ink' : 'text-brand-green-dark dark:text-brand-green',
+                ]}
+              >
+                {topic.title}
+              </a>
+            ) : (
+              <span class="text-slate">{topic.title}</span>
+            )}
+            {!compact && !topic.lesson && <span class="ml-2 text-xs text-stone">coming soon</span>}
+          </span>
+          {!compact && (
+            <span class="flex shrink-0 gap-1">
+              {topic.maturity && <Badge variant="orange">{topic.maturity}</Badge>}
+              <Badge variant={LEVELS[topic.level].variant}>{topic.level}</Badge>
+            </span>
+          )}
+        </li>
+      );
+    })
+  }
+</ol>

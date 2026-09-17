@@ -1,0 +1,195 @@
+import Callout from '../../components/ai-course/Callout.astro';
+
+## Course philosophy
+
+1. **Problem before tool.** Every technology is introduced as the answer to a problem you've already hit.
+2. **Build it by hand, then use the framework.** Raw `fetch` before an SDK. Cosine similarity by hand before a vector database. A hand-written tool loop before an agent framework.
+3. **Evaluate from week 3.** You can't improve a probabilistic system you don't measure.
+4. **Security, cost and observability are part of every project**, not a final chapter.
+5. **TypeScript first.** Python only where the ecosystem really requires it (fine-tuning, model internals).
+6. **No vendor lock-in.** Provider-specific APIs are labeled as such.
+
+Claims are labeled as **Fact**, **Best practice**, **Opinion** or **Emerging** throughout, and fast-moving lessons carry a "last verified" date.
+
+## Dependency graph
+
+```
+                 1.1 ML & neural network basics
+                               ↓
+                 1.2 Tokens, embeddings, attention intuition
+                               ↓
+                       1.3 Transformers
+                               ↓
+                       1.4 How LLMs work
+                               ↓
+                       2.1 Prompting
+                               ↓
+                       2.2 LLM APIs ──────────────────────┐
+                ┌──────────────┼──────────────┐           │
+                ↓              ↓              ↓           ↓
+        2.3 Structured    2.4 Streaming   3.1 Embeddings  8.1 Local models
+            output             ↓              ↓               ↓
+          │    ↓          2.5 Chat UI    3.2 Search/ANN   8.2 Fine-tuning (← 6.1)
+          │  2.6 Eval basics                  ↓
+          │    │                         3.3 Vector DBs
+          │    │                              ↓
+          │    │                     4.1 RAG core (← 2.3)
+          │    │                         ↓         ↓
+          │    │               4.2 Data eng    4.3 Advanced retrieval
+          │    └──────────────────→ 4.4 RAG evaluation
+          ↓
+    5.1 Tool calling
+          ↓
+    5.2 Workflows → Agents
+       ↓        ↓         ↓
+   5.3 MCP  5.4 Memory  5.5 Agentic RAG (← 4.3)
+       ↓
+ 6.1 Eval (deep) · 6.2 Security · 6.3 Observability
+       ↓
+ 7.1 Architecture → 7.2 Cost & performance → 7.3 Shipping
+       ↓
+ 9.1 AI-native engineering → 9.2 Emerging systems
+
+ 8.3 Multimodal ← 2.2.9 + 4.2.2        8.4 Internals ← 1.3 (optional)
+```
+
+<Callout type="practice" title="Dependency rules">
+  No framework (LangChain, LlamaIndex, Mastra) before 5.2. No vector database vendor before 3.2. No agents before
+  evaluation basics and tool calling. No fine-tuning before RAG and deep evaluation. No MCP before tool calling.
+</Callout>
+
+## Projects
+
+| # | Project | Core skills |
+|---|---|---|
+| 1 | Raw LLM call: no SDK, retries, timeouts, token and cost logging | 2.2 |
+| 2 | Text processor for PR descriptions and changelogs, with a 30-case eval | 2.1, 2.6 |
+| 3 | Structured extractor: bug report text into validated, typed JSON | 2.3 |
+| 4 | Streaming chat app: React + BFF, SSE, cancel/retry/regenerate, persistence | 2.4, 2.5 |
+| 5 | Semantic search engine: brute-force cosine → pgvector HNSW → hybrid + RRF | 3.x |
+| 6 | RAG document assistant with grounded answers and clickable citations | 4.1, 4.2 |
+| 7 | Production-quality RAG: reranking, query rewriting, ACLs, incremental indexing, CI evals | 4.3, 4.4 |
+| 8 | Tool-calling dev dashboard assistant with an approval UI for write actions | 5.1 |
+| 9 | Hand-built agent with budgets, checkpoints and human-in-the-loop, then a framework rebuild | 5.2 |
+| 10 | MCP server + MCP client for your knowledge base | 5.3 |
+| 11 | Agentic RAG across docs, GitHub and the web, with trajectory evals | 5.5, 6.1 |
+| 12 | Production-grade AI app: auth, multi-tenancy, observability, cost controls, red-teaming, deploy | 6–7 |
+
+## Capstone: DevBrain, an engineering knowledge assistant
+
+One app that grows through the whole course, built over a corpus you own: docs, ADRs, READMEs, PRs, and even this site's write-ups.
+
+| Version | Adds | Season |
+|---|---|---|
+| v1 | Plain chatbot through a BFF (API key stays on the server) | 2 |
+| v2 | Streaming, cancellation, persistence | 2 |
+| v3 | Structured answer cards + first golden dataset | 2 |
+| v4 | Document upload and ingestion | 3–4 |
+| v5 | Embeddings + pgvector semantic/hybrid search | 3 |
+| v6 | RAG answers | 4 |
+| v7 | Citations UI with source previews | 4 |
+| v8 | Reranking, query rewriting, incremental indexing, ACLs | 4 |
+| v9 | Tools: GitHub search, issues, draft-issue creation with approval | 5 |
+| v10 | Agent mode with visible steps, budgets and human-in-the-loop | 5 |
+| v11 | Expose DevBrain as an MCP server; consume external MCP servers | 5 |
+| v12 | Full eval suite gating CI | 6 |
+| v13 | Tracing, cost per user, feedback | 6 |
+| v14 | Security hardening and prompt-injection red-teaming | 6 |
+| v15 | Production: auth, quotas, fallbacks, caching, routing, deploy | 7 |
+
+## Traditional vs AI architecture
+
+```
+TRADITIONAL                     AI APPLICATION
+UI                              UI  (streaming, partial state, approvals, citations)
+ ↓                               ↓
+API                             API / BFF  (auth, quotas, stream proxy)
+ ↓                               ↓
+Business logic                  Orchestrator  (deterministic control, prompts, budgets)
+ ↓                               ↓         ↘               ↘
+Database                        LLM(s)     Retriever → Vector/search DB
+                                 ↓          Tools → External APIs / MCP servers
+                                Validation + guardrails (deterministic again)
+                                 ↓
+                                Response + trace + cost record + eval sample
+```
+
+| Concern | Traditional | AI |
+|---|---|---|
+| Correctness | Tests prove it | Evals estimate it statistically |
+| Behavior source | Code | Code + prompt + model version + retrieved data |
+| Latency | Milliseconds | Seconds, streamed |
+| Cost | Mostly fixed infrastructure | Per request, variable, attacker-inflatable |
+| Security | Injection solved by parameterization | Prompt injection has no complete fix; contain it architecturally |
+| Dependencies | Versioned libraries | Models get deprecated and change behavior |
+
+## 12-week plan (default)
+
+About 1.5 hours a day, 5 days a week. Days 1–2: read and take notes. Days 3–4: build. Day 5: break things, debug, assess.
+
+| Week | Topics | Build |
+|---|---|---|
+| 1 | 1.1, 1.2 | Gradient descent in TypeScript; compare tokenizers |
+| 2 | 1.3, 1.4 | Toy attention; sampling playground; **Project 1** |
+| 3 | 2.1, 2.3, 2.6 | **Projects 2 + 3**; first golden dataset |
+| 4 | 2.2, 2.4, 2.5 | **Project 4**; capstone v1–v3 |
+| 5 | 3.1–3.3 | **Project 5**; capstone v4–v5 |
+| 6 | 4.1, 4.2 | **Project 6**; capstone v6–v7 |
+| 7 | 4.3, 4.4 | **Project 7**; capstone v8; mid-course review |
+| 8 | 5.1, 5.2 (part 1) | **Project 8**; capstone v9 |
+| 9 | 5.2 (part 2), 5.3 | **Projects 9 + 10**; capstone v10–v11 |
+| 10 | 5.4, 5.5, 6.1 | **Project 11**; capstone v12 |
+| 11 | 6.2, 6.3 | Red-team + tracing; capstone v13–v14 |
+| 12 | 7.1–7.3, 9.1 (selected) | **Project 12**; capstone v15; final architecture review |
+
+After week 12, take Season 8 and 9.2 at your own pace over 4–6 weeks.
+
+**8-week variant (~2h/day):** Season 1 → prompting, APIs and evals → streaming, chat and search → RAG core → advanced RAG → tools, agents and MCP → quality → production. You'll reach "can build" on most topics, but design judgment will be thinner.
+
+**16-week variant (~1–1.5h/day):** Same order, with 2–3 weeks each for Seasons 2, 4 and 5, plus dedicated weeks for local models and fine-tuning.
+
+## Maturity labels (as of September 2026)
+
+| Concept | Label |
+|---|---|
+| RAG, hybrid search, reranking, tool calling, structured outputs | Established |
+| Reasoning models, prompt caching, model routing, MoE, small models | Established |
+| MCP (tools, resources, prompts) | Established — spec still evolving |
+| Context engineering | Established practice, new name |
+| Agent Skills, AGENTS.md | Emerging, broad adoption |
+| Agentic RAG, GraphRAG, computer-use agents, A2A, MCP Apps, generative UI | Emerging |
+| OpenTelemetry GenAI conventions | Emerging — still in Development status |
+| DSPy-style prompt optimization | Experimental for most teams |
+| "AI-native databases", autonomous multi-agent "companies" | Hype / low practical value |
+
+## Don't learn this yet
+
+| Skip for now | Why |
+|---|---|
+| Backprop derivations, linear algebra and calculus courses | Intuition is enough for application engineering |
+| Training models from scratch, PyTorch in depth | A researcher/ML engineer skill with little payoff for building products |
+| CUDA, GPU kernels, distributed training | Specialized infrastructure roles |
+| LangChain or LlamaIndex before hand-building RAG and agents | Abstractions hide exactly what you need to learn |
+| Multi-agent "team" frameworks | Most problems need a workflow, not a team of agents |
+| Fine-tuning | Prompting + RAG + evals solve most cases |
+| Comparing ten vector databases | pgvector covers most apps until you hit a measured limit |
+| GraphRAG, A2A | Niche wins; you don't have the problem yet |
+| Chasing model releases and leaderboards | Your own eval set is the benchmark that matters |
+| Prompt "hack" lists, no-code agent builders | Short-lived tricks that hide the architecture you're trying to learn |
+
+## Technology roadmap
+
+<Callout type="opinion">
+  Picks for a TypeScript/frontend engineer. Every tool here changes quickly; lessons re-verify versions.
+</Callout>
+
+| Phase | Stack |
+|---|---|
+| Season 2 | Raw `fetch` → provider SDK → Vercel AI SDK; Zod; Next.js or Vite + Hono; Vitest; promptfoo or Evalite |
+| Season 3 | Postgres + pgvector, Postgres full-text search, one hosted and one local embedding model |
+| Season 4 | Document parsers, a job queue, a reranker |
+| Season 5 | AI SDK agents with tool approval; LangGraph.js or Mastra for comparison; MCP TypeScript SDK + Inspector |
+| Season 6 | Langfuse or Phoenix, OpenTelemetry, promptfoo red-teaming, OWASP checklists |
+| Season 7 | An AI gateway, durable execution (Temporal/Inngest), Redis rate limiting |
+| Season 8 | Ollama, llama.cpp, vLLM, Transformers.js; Python for PEFT/TRL/Unsloth |
+| Season 9 | Coding agents, AGENTS.md, Agent Skills, MCP servers for GitHub, browsers and databases |

@@ -33,8 +33,8 @@ We're looking for the largest integer `m` such that `m * m <= 8`.
 | low | high | mid | mid*mid | compare to 8 | action |
 |-----|------|-----|---------|--------------|--------|
 | 0 | 8 | 4 | 16 | 16 > 8 | too big, high = 3 |
-| 0 | 3 | 1 | 1 | 1 <= 8 | candidate = 1, low = 2 |
-| 2 | 3 | 2 | 4 | 4 <= 8 | candidate = 2, low = 3 |
+| 0 | 3 | 1 | 1 | 1 &lt;= 8 | candidate = 1, low = 2 |
+| 2 | 3 | 2 | 4 | 4 &lt;= 8 | candidate = 2, low = 3 |
 | 3 | 3 | 3 | 9 | 9 > 8 | too big, high = 2 |
 
 Loop ends (`low > high`). Best candidate found: `2`. `sqrt(8) ≈ 2.828`, floor is `2` ✓.

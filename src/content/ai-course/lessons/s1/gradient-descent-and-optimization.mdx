@@ -1,0 +1,474 @@
+---
+topic: '1.1.7'
+date: 2026-09-17
+summary: Gradient descent finds good parameters by measuring which way the loss slopes and taking small steps downhill — a generic search loop you can write in 30 lines of TypeScript.
+estimatedMinutes: 35
+tags: [Foundations, Training, Optimization]
+prerequisites: ['1.1.6']
+references:
+  - title: 'Linear regression: Gradient descent'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/linear-regression/gradient-descent
+    tier: must
+    level: Beginner
+    why: A step-by-step, interactive walkthrough of gradient descent on a small model, with loss curves showing convergence.
+  - title: 'Linear regression: Hyperparameters'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/linear-regression/hyperparameters
+    tier: must
+    level: Beginner
+    why: Covers learning rate, batch size and epochs, including what "too small" and "too large" learning rates look like.
+  - title: Neural Networks, Chapter 2 — Gradient descent, how neural networks learn
+    source: 3Blue1Brown
+    url: https://www.3blue1brown.com/lessons/gradient-descent
+    tier: should
+    level: Beginner
+    why: The best visual intuition for "rolling downhill" in a space with thousands of dimensions.
+  - title: Why Momentum Really Works
+    source: Gabriel Goh, Distill (2017)
+    url: https://distill.pub/2017/momentum/
+    tier: optional
+    level: Intermediate
+    why: Interactive plots of plain gradient descent vs momentum, including the oscillation you'll reproduce in this lesson.
+  - title: An overview of gradient descent optimization algorithms
+    source: Sebastian Ruder, 2016
+    url: https://arxiv.org/abs/1609.04747
+    tier: optional
+    level: Advanced
+    why: A readable survey of SGD, momentum, RMSprop and Adam, for when you want to know what the optimizer options in a training library do.
+---
+
+import Callout from '../../../../components/ai-course/Callout.astro';
+import Answer from '../../../../components/ai-course/Answer.astro';
+
+## 1. Why does this exist?
+
+Lesson 1.1.2 fitted one threshold by trying every candidate. Its exercise hinted at the problem: two parameters meant
+roughly the square of the candidates, and every extra parameter multiplies the work again. Lesson 1.1.5 showed that a
+real model has billions of parameters. Brute force is impossible.
+
+Lesson 1.1.6 gave you the other ingredient: a smooth loss that changes a little whenever a parameter changes a little.
+**Gradient descent uses that smoothness to search without enumerating anything.** At the current parameters, measure
+which direction makes the loss go down, take a small step that way, and repeat. Every neural network, including every
+LLM, is trained with some version of this loop.
+
+## 2. What problem does it solve?
+
+It solves **"find parameters that make the loss small, when there are far too many to search."**
+
+- **Cost per step doesn't explode with parameter count.** Each step looks only at the local slope, not at every
+  combination.
+- **It's generic.** The same loop trains a 2-parameter logistic regression and a 70B-parameter model. Only the loss
+  function and the model change.
+- **It works with data too big to use at once.** Mini-batches let you take steps using a small sample of examples.
+
+## 3. Simple explanation
+
+Imagine standing on a foggy hillside, trying to reach the lowest point. You can't see the valley, but you can feel
+the slope under your feet. So you take a step downhill, feel again, and step again.
+
+- **Your position** is the current parameter values.
+- **The height** is the loss.
+- **The slope** is the **gradient**: for each parameter, "if I increase this a tiny bit, how much does the loss
+  change?"
+- **The step size** is the **learning rate**.
+
+The update rule for every parameter is one line:
+
+```ts
+param = param - learningRate * gradient;
+```
+
+Subtracting moves you downhill: if increasing a parameter raises the loss (positive gradient), you decrease it,
+and the other way around.
+
+You can even measure the slope without any calculus: **nudge the parameter up a tiny bit, nudge it down, and see how
+much the loss changed.** That's the numeric gradient, and it's what this lesson's code uses.
+
+## 4. Mental model
+
+**Gradient descent is a feedback control loop, like autoscaling.**
+
+```ts
+while (!converged) {
+  const error = loss(params);              // measure
+  const direction = gradient(loss, params); // which knob makes it worse?
+  params = step(params, direction, lr);     // adjust, a little
+}
+```
+
+An autoscaler measures load, adjusts replicas a bit, and measures again. If it reacts too weakly it lags. If it reacts
+too aggressively it overshoots, then overcorrects, and oscillates. The learning rate is exactly that gain setting,
+and it fails in exactly those two ways.
+
+## 5. How it works internally
+
+**The gradient, measured by nudging.** For each parameter `i`:
+
+```
+gradient[i] ≈ ( loss(param i + h) - loss(param i - h) ) / (2h)
+```
+
+with a tiny `h` like `0.00001`. The result is a vector with one slope per parameter. It points in the direction the
+loss rises fastest, so you step the opposite way.
+
+**One parameter, three learning rates.** The code example fits `hours ≈ w × storyPoints` to four tickets using MSE.
+The best `w` is about 2.051. Starting from `w = 0`, the first few steps are:
+
+| Learning rate | w after steps 0 → 4 | Behavior |
+|---|---|---|
+| 0.005 | 0.00 → 0.20 → 0.38 → 0.54 → 0.69 | Too small: steady but slow |
+| 0.05 | 0.00 → 2.00 → 2.05 → 2.05 → 2.05 | About right: converges in a few steps |
+| 0.11 | 0.00 → 4.40 → -0.64 → 5.13 → -1.47 | Too big: overshoots further each time and diverges |
+
+For this loss, the math says steps stay stable only while the learning rate is below `2 / 19.5 ≈ 0.1026`, where
+19.5 is how sharply the loss curves around its minimum. You rarely compute that in practice. You try values and watch
+the loss curve.
+
+**Two parameters: logistic regression for the bot detector.** Lesson 1.1.2 searched for a threshold on
+`secondsToFill`. Now the model is `P(bot) = sigmoid(w × secondsToFill + b)`, the loss is cross-entropy, and gradient
+descent adjusts `w` and `b` together. After 4,000 steps it reaches `w ≈ -1.095`, `b ≈ 5.286`, which means "bot if
+`secondsToFill` is below `-b / w ≈ 4.83`". It makes the same single training error as the brute-force search did,
+the autofill human, but it got there without enumerating anything, and it outputs probabilities instead of a yes/no.
+
+**Numeric vs analytic gradients.** Nudging needs two loss evaluations per parameter, per step. For 2 parameters,
+that's fine. For Llama 2 7B, it would be about 13.5 billion full passes over the batch *for a single step*. Calculus
+gives the same gradient much more cheaply: for logistic regression with cross-entropy, it's just the average of
+`(p - y) × input`. The code checks that both methods agree. **Backpropagation** (lesson 1.1.8) computes that analytic
+gradient for every parameter of a deep network in one backward pass, which costs only a small multiple (roughly
+two to three times) of the forward pass.
+
+**Batches, epochs and SGD.** Computing the loss over the entire dataset for every step is too slow when the dataset
+has billions of examples. Instead:
+
+- **Mini-batch stochastic gradient descent (SGD)** estimates the gradient on a small random batch, often tens to
+  thousands of examples, and steps using that estimate. Steps are noisier but much cheaper.
+- An **epoch** is one full pass through the training data, which is many batches.
+- The noise isn't all bad. It can help the search avoid settling in poor spots.
+
+**Where it can go wrong.** Neural network losses aren't neat bowls. They have flat regions, saddle points and many
+local minima. In practice, large networks train well with gradient descent anyway, but progress can stall and results
+depend on the starting values, learning rate and batch size.
+
+<Callout type="fact" title="Optimizers you'll see named">
+  **Momentum** keeps a running average of recent gradients, so steps build speed in consistent directions and damp
+  oscillation. **Adam** (and its variant **AdamW**) also scales each parameter's step by how large its recent
+  gradients have been. AdamW is a common default for training transformers. They're all refinements of the same
+  loop: measure the gradient, step against it.
+</Callout>
+
+<Callout type="practice">
+  Learning rates are usually tuned on a log scale (0.1, 0.01, 0.001...), and large training runs often change the
+  learning rate over time with a **schedule**: a short warmup, then a gradual decay.
+</Callout>
+
+## 6. Visual explanation
+
+The loss as a valley, and what each learning rate does (one parameter, `w`):
+
+```
+ loss
+  │ ╲                                           ╱
+  │  ╲                                         ╱
+  │   ╲                                       ╱
+  │    ╲                                     ╱
+  │     ╲_                                 _╱
+  │       ╲__                           __╱
+  │          ╲___                   ___╱
+  │              ╲_______●_______╱
+  └────────────────────────────────────────────────── w
+                    minimum w ≈ 2.05
+
+ lr 0.005: ●→●→●→●→ ...          tiny steps, slow
+ lr 0.05:  ●────────────→●       lands almost at once
+ lr 0.11:  ●──────→ ←──────● ────────→ ...   overshoots, grows
+```
+
+The training loop:
+
+```
+ ┌──────────────────────────────────────────────────────┐
+ │ 1. pick a batch of examples                          │
+ │ 2. predictions = model(params, batch)                │
+ │ 3. L = loss(predictions, labels)                     │
+ │ 4. g = gradient of L for every parameter             │
+ │ 5. params = params - learningRate × g                │
+ └───────────────── repeat for many steps ──────────────┘
+```
+
+Why brute force loses (candidates per parameter = 100):
+
+```
+ parameters   brute-force evaluations   gradient descent
+     1              100                  a few per step
+     2           10,000                  a few per step
+     3        1,000,000                  a few per step
+    10        100^10 = 10^20             a few per step
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Gradient descent equivalent |
+|---|---|
+| A control loop (autoscaler, PID controller) | Measure the loss, adjust parameters, repeat |
+| The gain or aggressiveness of the controller | The learning rate: too low lags, too high oscillates |
+| Binary search vs linear scan | Using slope information instead of trying everything |
+| Sampling traffic instead of logging every request | Mini-batches estimate the gradient from a sample |
+| A batch job with checkpoints | Training: many steps, with parameter snapshots saved along the way |
+| Retry with exponential backoff tuning | Learning rate schedules: warmup, then decay |
+| A benchmark whose results vary run to run | Training runs differ with seeds, shuffling and batch order |
+
+For backend engineers, training is a long-running, checkpointed batch job where the main health signal is the
+loss curve. For anyone calling an LLM API, this loop is finished before you ever see the model: the weights you call
+are its output.
+
+## 8. Code example
+
+Gradient descent with a numeric gradient, first on one parameter, then on the two-parameter bot detector. Run it
+with `node --experimental-strip-types gd.ts` (Node 22.6+).
+
+```ts
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+// Numeric gradient: nudge each parameter a tiny bit and measure how the loss changes.
+function numericGradient(loss: (params: number[]) => number, params: number[], h = 1e-5): number[] {
+  return params.map((_, i) => {
+    const up = [...params]; up[i] += h;
+    const down = [...params]; down[i] -= h;
+    return (loss(up) - loss(down)) / (2 * h);
+  });
+}
+
+// Gradient descent: repeatedly step *against* the gradient.
+function descend(loss: (p: number[]) => number, start: number[], learningRate: number, steps: number, logEvery: number) {
+  let params = start;
+  for (let step = 0; step <= steps; step++) {
+    if (step % logEvery === 0) {
+      console.log(`  step ${String(step).padStart(4)}  params=[${params.map((v) => v.toFixed(3)).join(', ')}]  loss=${loss(params).toFixed(4)}`);
+    }
+    const grad = numericGradient(loss, params);
+    params = params.map((p, i) => p - learningRate * grad[i]);
+  }
+  return params;
+}
+
+// --- 1) One parameter: hours ≈ w × storyPoints, with mean squared error.
+const tickets = [{ points: 1, hours: 2.5 }, { points: 2, hours: 4 }, { points: 3, hours: 6.5 }, { points: 5, hours: 10 }];
+const hoursLoss = ([w]: number[]) => mean(tickets.map((t) => (w * t.points - t.hours) ** 2));
+
+for (const lr of [0.005, 0.05, 0.11]) {
+  console.log(`learning rate ${lr}:`);
+  descend(hoursLoss, [0], lr, 20, 5);
+}
+
+// --- 2) Two parameters: the bot detector from lesson 1.1.2, now as logistic regression.
+// P(bot) = sigmoid(w × secondsToFill + b), trained with cross-entropy.
+const history = [
+  { s: 1.2, bot: 1 }, { s: 2.0, bot: 1 }, { s: 3.1, bot: 1 }, { s: 4.0, bot: 1 }, { s: 4.4, bot: 1 },
+  { s: 5.5, bot: 0 }, { s: 4.8, bot: 1 }, { s: 3.8, bot: 0 }, { s: 6.3, bot: 0 }, { s: 9.8, bot: 0 },
+  { s: 14.0, bot: 0 }, { s: 22.5, bot: 0 }, { s: 38.0, bot: 0 },
+];
+const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
+const botLoss = ([w, b]: number[]) =>
+  mean(history.map(({ s, bot }) => {
+    const p = sigmoid(w * s + b);
+    return -(bot * Math.log(p + 1e-12) + (1 - bot) * Math.log(1 - p + 1e-12));
+  }));
+
+console.log('bot detector (w, b):');
+const [w, b] = descend(botLoss, [0, 0], 0.05, 4000, 1000);
+const errors = history.filter(({ s, bot }) => (sigmoid(w * s + b) > 0.5 ? 1 : 0) !== bot).length;
+console.log(`  decision threshold: secondsToFill < ${(-b / w).toFixed(2)}   training errors: ${errors}`);
+
+// The calculus shortcut gives the same gradient, without 2 extra loss evaluations per parameter.
+const analytic = [
+  mean(history.map(({ s, bot }) => (sigmoid(w * s + b) - bot) * s)),
+  mean(history.map(({ s, bot }) => sigmoid(w * s + b) - bot)),
+];
+console.log('  numeric gradient: ', numericGradient(botLoss, [w, b]).map((g) => g.toExponential(3)));
+console.log('  analytic gradient:', analytic.map((g) => g.toExponential(3)));
+```
+
+Output:
+
+```
+learning rate 0.005:
+  step    0  params=[0.000]  loss=41.1250
+  step    5  params=[0.823]  loss=14.8065
+  step   10  params=[1.316]  loss=5.3717
+  step   15  params=[1.611]  loss=1.9894
+  step   20  params=[1.788]  loss=0.7769
+learning rate 0.05:
+  step    0  params=[0.000]  loss=41.1250
+  step    5  params=[2.051]  loss=0.0994
+  step   10  params=[2.051]  loss=0.0994
+  step   15  params=[2.051]  loss=0.0994
+  step   20  params=[2.051]  loss=0.0994
+learning rate 0.11:
+  step    0  params=[0.000]  loss=41.1250
+  step    5  params=[6.088]  loss=158.9944
+  step   10  params=[-5.893]  loss=615.5102
+  step   15  params=[17.687]  loss=2383.6258
+  step   20  params=[-28.719]  loss=9231.6540
+bot detector (w, b):
+  step    0  params=[0.000, 0.000]  loss=0.6931
+  step 1000  params=[-0.624, 3.025]  loss=0.3245
+  step 2000  params=[-0.850, 4.124]  loss=0.2986
+  step 3000  params=[-0.993, 4.805]  loss=0.2888
+  step 4000  params=[-1.095, 5.286]  loss=0.2839
+  decision threshold: secondsToFill < 4.83   training errors: 1
+  numeric gradient:  [ '1.741e-3', '-8.250e-3' ]
+  analytic gradient: [ '1.741e-3', '-8.250e-3' ]
+```
+
+What to take from it:
+
+- **Same loop, different learning rates, three outcomes.** At 0.005 the loss is still 0.78 after 20 steps. At 0.05
+  it hits its minimum of 0.0994 within 5 steps. At 0.11 it blows up to over 9,000.
+- **The bot detector starts at loss 0.6931**, the `ln 2` "knows nothing" baseline from lesson 1.1.6, and falls
+  steadily. It's still improving slowly at step 4,000: real training runs also end on a budget, not at a perfect
+  minimum.
+- **The two gradient methods agree** to four significant figures. The analytic one is what training libraries compute.
+
+## 9. Real-world example
+
+**Pretraining an LLM is this loop at extreme scale.** Each step takes a batch of text sequences, computes the
+next-token cross-entropy (lesson 1.1.6), computes gradients for every parameter with backpropagation, and updates all
+of them with an optimizer such as AdamW. That step repeats for weeks, on thousands of GPUs sharing the work.
+
+What the engineers running it actually watch:
+
+- **The loss curve**, for sudden spikes or plateaus.
+- **The learning-rate schedule**, usually a warmup followed by a decay.
+- **Divergence**: a loss that turns into `NaN` usually means a step size or numeric issue. The fix is typically to
+  roll back to a checkpoint and lower the learning rate, or skip bad batches.
+- **Checkpoints**, saved regularly so a failed node or a spike doesn't cost the whole run.
+
+<Callout type="practice">
+  When fine-tuning a pretrained model later in the course (Season 8), start with the learning rate the library or
+  model authors recommend. Fine-tuning usually uses a much smaller learning rate than pretraining, to avoid wrecking
+  what the model already knows.
+</Callout>
+
+## 10. Common mistakes
+
+- **Learning rate too high.** Loss oscillates, grows or becomes `NaN`. Lower it by 3–10× first.
+- **Learning rate too low.** Loss falls so slowly that it looks stuck. Check the curve before assuming the model can't
+  learn.
+- **Getting the sign wrong.** `param + lr * gradient` is gradient *ascent*. The loss will rise immediately.
+- **Not shuffling data.** If batches arrive sorted, say all bots then all humans, each step pulls the model toward
+  whichever group it just saw.
+- **Unscaled features.** When one input is in the millions and another is 0–1, a single learning rate is too big for
+  one and too small for the other. Normalize inputs.
+- **Judging by one run.** Randomness in initialization and batch order moves results. Compare settings over a few seeds.
+- **Assuming lower training loss is always better.** Past a point, the model memorizes (lesson 1.1.10).
+
+## 11. Limitations
+
+- **It finds a good spot, not necessarily the best one.** On non-convex losses there's no guarantee of a global
+  minimum, though in large networks good-enough minima are usually plentiful.
+- **It needs a differentiable loss.** Metrics like accuracy or "user clicked" can't be optimized directly.
+- **It's sensitive to hyperparameters.** Learning rate, batch size and schedule can make or break a run, and tuning them
+  costs compute.
+- **Numeric gradients don't scale.** They're for understanding and for checking code, while real training uses
+  backpropagation.
+- **It's slow for huge models.** Even with GPUs, training frontier models takes weeks of cluster time (lesson 1.1.12).
+
+## 12. When to use it
+
+- To train any differentiable model: linear and logistic regression, neural networks, transformers.
+- To fine-tune pretrained models on your own data.
+- As a **debugging mental model** when a training or fine-tuning job misbehaves: check the loss curve, the learning
+  rate and the data order first.
+- Numeric gradients specifically: to **check** a hand-written gradient, exactly as the code example does.
+
+## 13. When NOT to use it
+
+- When there are only a handful of discrete options, like one threshold over a few values. Brute force is simpler
+  and exact.
+- When the objective isn't differentiable or is a black box, for example tuning prompts or configuration flags. Use
+  search, evaluation sweeps or Bayesian optimization instead.
+- When a closed-form solution exists and the data is small. Ordinary linear regression can be solved directly.
+- When you only consume models through an API. You'll tune prompts and evals, not parameters.
+
+## 14. Interview explanation (30 seconds)
+
+> Gradient descent minimizes a loss by repeatedly computing the gradient, the slope of the loss with respect to each
+> parameter, and moving every parameter a small step in the opposite direction. The step size is the learning rate:
+> too small and training crawls, too large and it overshoots and diverges. In practice we use mini-batch SGD, which
+> estimates the gradient from a small random batch each step, usually with an optimizer like Adam. Backpropagation is
+> what computes those gradients efficiently for every parameter in a neural network.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start from the problem. With a differentiable loss and millions of parameters, exhaustive search is impossible, but the
+gradient tells you locally which direction decreases the loss fastest. The update is
+`θ ← θ − η ∇L(θ)`.
+
+Explain the gradient concretely: it's a vector of partial derivatives. You can approximate each component by
+perturbing one parameter and measuring the change in loss, which is useful for checking code. But that costs two loss
+evaluations per parameter, so real systems compute the exact gradient with backpropagation, at a small constant
+multiple of the cost of a forward pass.
+
+Discuss the learning rate with an example. On a one-parameter quadratic loss, a small rate converges slowly, a
+moderate one converges quickly, and one above a stability limit (two divided by the curvature) oscillates with growing
+amplitude. In deep learning, you find rates empirically with a sweep and use a schedule, usually warmup then decay.
+
+Cover the stochastic part. Full-batch gradients are too expensive, so mini-batch SGD uses a random batch per step.
+Define epochs. Mention that gradient noise acts as a mild regularizer, and that batch size and learning rate interact.
+
+Name the improved optimizers. Momentum accumulates velocity to smooth oscillation. Adam keeps per-parameter moving
+averages of the gradient and its square, adapting step sizes. AdamW decouples weight decay and is a common default for
+transformers.
+
+Address non-convexity. There are no global guarantees, but large networks have many good minima and saddle points
+are more of a practical issue than bad local minima. Close with operational practice: watch loss curves, catch
+divergence, checkpoint, shuffle data, normalize features and compare across seeds.
+
+## 16. Hands-on exercise
+
+Run the code example, then experiment with the learning rate:
+
+1. **Find the edge.** For `hoursLoss`, try learning rates 0.1, 0.102, 0.103 and 0.105 for 200 steps each. Where does
+   training stop converging? Compare with the stability limit in section 5.
+2. **Speed up the bot detector.** Count how many steps it takes the bot detector to reach a loss below 0.29 with
+   learning rates 0.05, 0.5, 1 and 2.
+3. **Break the sign.** Change `p - learningRate * grad[i]` to `+`. What happens to the loss?
+
+<Answer label="Answers from running it">
+  1. At 0.1, `w` settles at 2.051 with loss 0.0994. At 0.102 it's still oscillating after 200 steps (loss 0.5909),
+     because it's just under the limit and the swings shrink very slowly. At 0.103 and 0.105 it diverges: loss about
+     1,212 and 4.7 billion. That matches the limit of about 0.1026.
+  2. 2,827 steps at 0.05, 263 at 0.5 and 254 at 1. At 2 it never gets there: after 20,000 steps the loss is stuck
+     around 0.56 as the parameters overshoot back and forth. Bigger is faster only up to a point.
+  3. The loss rises every step: you've written gradient *ascent*, which finds the worst parameters instead of the best.
+</Answer>
+
+## 17. Challenge
+
+Turn the loop into a small **training library**.
+
+1. **Mini-batch SGD.** Using the seeded `mulberry32` generator from lesson 1.1.3 and a proper Fisher–Yates shuffle,
+   split the 13 signups into batches of 4 each epoch and take one step per batch. Train for 800 epochs and log the
+   full-dataset loss every 200 epochs. Is the curve as smooth as full-batch descent?
+2. **Momentum.** Add `velocity = 0.9 * velocity + gradient; param -= lr * velocity`. Compare how many steps
+   full-batch training needs to reach loss below 0.29, with and without momentum, at learning rate 0.05.
+3. **Two features.** Add `keystrokes` for each signup, as in lesson 1.1.2's exercise, and train
+   `sigmoid(w1 × seconds + w2 × keystrokes + b)`. Does it fix the autofill human?
+4. **Gradient check.** Write the analytic gradient for the two-feature model and assert it matches the numeric
+   gradient within `1e-6` at a few random parameter values. This is exactly how people test hand-written
+   backpropagation.
+
+<Answer label="Hints">
+  Mini-batch steps are noisy. In our run (seed 42, learning rate 0.05, Fisher–Yates shuffle), the full-dataset loss
+  went *up* on 1,512 of the 3,200 updates, yet the trend still fell: 0.3405, 0.3123, 0.2945 and 0.2902 at epochs 200,
+  400, 600 and 800, close to full-batch descent. Your exact numbers will depend on how you draw random values.
+  Momentum 0.9 cuts full-batch training from 2,827 steps to 261, because consecutive gradients here mostly point the
+  same way. With keystrokes,
+  a linear boundary can separate the autofill human if your data gives them clearly more keystrokes than bots. If the
+  check fails, compare one component at a time, and make sure you're averaging over the same examples in both versions.
+</Answer>
+
+## 18. References
+
+The curated reading for this lesson is below, grouped into must read, should read and optional.

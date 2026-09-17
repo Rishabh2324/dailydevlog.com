@@ -1,0 +1,27 @@
+---
+/** Labels a claim so readers can tell facts from practices, opinions and fast-moving material. */
+interface Props {
+  type: 'fact' | 'practice' | 'opinion' | 'emerging' | 'mistake' | 'note';
+  title?: string;
+}
+
+const { type, title } = Astro.props;
+
+const styles: Record<Props['type'], { label: string; classes: string }> = {
+  fact: { label: 'Fact', classes: 'border-accent-blue bg-accent-blue/5' },
+  practice: { label: 'Best practice', classes: 'border-brand-green-mid bg-surface-feature' },
+  opinion: { label: 'Opinion', classes: 'border-accent-purple bg-accent-purple/5' },
+  emerging: { label: 'Emerging', classes: 'border-accent-orange bg-accent-orange/5' },
+  mistake: { label: 'Common mistake', classes: 'border-accent-pink bg-accent-pink/5' },
+  note: { label: 'Note', classes: 'border-hairline-strong bg-surface-soft' },
+};
+
+const { label, classes } = styles[type];
+---
+
+<aside class:list={['not-prose my-6 rounded-md border-l-4 px-4 py-3 text-[15px] leading-relaxed text-charcoal', classes]}>
+  <p class="text-xs font-semibold tracking-wide text-steel uppercase">{title ? `${label} · ${title}` : label}</p>
+  <div class="mt-1 [&_a]:text-brand-green-dark [&_a]:underline [&_code]:font-mono [&_code]:text-sm [&_p+p]:mt-2 dark:[&_a]:text-brand-green">
+    <slot />
+  </div>
+</aside>

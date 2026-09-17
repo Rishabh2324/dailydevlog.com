@@ -1,6 +1,7 @@
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { getAllTopics } from './ai-course';
 
-export type ActivityKind = 'dsa' | 'daily-log';
+export type ActivityKind = 'dsa' | 'daily-log' | 'ai-course';
 
 export interface ActivityItem {
   kind: ActivityKind;
@@ -37,12 +38,29 @@ function dailyLogToActivity(entry: CollectionEntry<'daily-log'>): ActivityItem {
 }
 
 export async function getAllActivity(): Promise<ActivityItem[]> {
-  const [dsaEntries, dailyLogEntries] = await Promise.all([
+  const [dsaEntries, dailyLogEntries, topics] = await Promise.all([
     getCollection('dsa', ({ data }) => !data.draft),
     getCollection('daily-log'),
+    getAllTopics(),
   ]);
 
-  const items = [...dsaEntries.map(dsaToActivity), ...dailyLogEntries.map(dailyLogToActivity)];
+  const lessonItems: ActivityItem[] = topics.flatMap((topic) =>
+    topic.lesson
+      ? [
+          {
+            kind: 'ai-course' as const,
+            slug: topic.slug,
+            href: topic.href,
+            title: `${topic.id} ${topic.title}`,
+            date: topic.lesson.data.date,
+            summary: topic.lesson.data.summary,
+            tags: [topic.level, ...topic.lesson.data.tags],
+          },
+        ]
+      : []
+  );
+
+  const items = [...dsaEntries.map(dsaToActivity), ...dailyLogEntries.map(dailyLogToActivity), ...lessonItems];
 
   return items.sort((a, b) => b.date.getTime() - a.date.getTime());
 }

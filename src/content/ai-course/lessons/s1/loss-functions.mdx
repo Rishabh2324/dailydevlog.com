@@ -1,0 +1,439 @@
+---
+topic: '1.1.6'
+date: 2026-09-17
+summary: A loss function turns "how wrong is this model?" into one number that a search can minimize — and the choice of loss, like MSE or cross-entropy, decides which mistakes the model cares about most.
+estimatedMinutes: 30
+tags: [Foundations, Training]
+prerequisites: ['1.1.5']
+references:
+  - title: 'Linear regression: Loss'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/linear-regression/loss
+    tier: must
+    level: Beginner
+    why: A short, interactive comparison of squared and absolute loss, including how each one treats outliers.
+  - title: 'Logistic regression: Loss and regularization'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/logistic-regression/loss-regularization
+    tier: must
+    level: Beginner
+    why: Explains log loss (binary cross-entropy) and why classification uses it instead of squared loss.
+  - title: Neural Networks, Chapter 2 — Gradient descent, how neural networks learn
+    source: 3Blue1Brown
+    url: https://www.3blue1brown.com/lessons/gradient-descent
+    tier: should
+    level: Beginner
+    why: Introduces the cost function visually as a single score over all weights and biases, which leads directly into lesson 1.1.7.
+  - title: Perplexity of fixed-length models
+    source: Hugging Face Transformers docs
+    url: https://huggingface.co/docs/transformers/perplexity
+    tier: optional
+    level: Intermediate
+    why: Shows how next-token cross-entropy becomes perplexity, the metric you'll see in language model papers.
+  - title: Deep Learning, Chapter 5 — Machine Learning Basics
+    source: Goodfellow, Bengio & Courville — MIT Press
+    url: https://www.deeplearningbook.org/contents/ml.html
+    tier: optional
+    level: Advanced
+    why: Grounds MSE and cross-entropy in maximum likelihood, for when you want to know why these losses and not others.
+---
+
+import Callout from '../../../../components/ai-course/Callout.astro';
+import Answer from '../../../../components/ai-course/Answer.astro';
+
+## 1. Why does this exist?
+
+In lesson 1.1.5 you saw that a model is a fixed program plus a pile of parameters. In lesson 1.1.4 you set nine of
+them by hand. Real models have millions or billions, so someone has to search for good values automatically.
+
+A search needs a target. "Make the model good" isn't something code can optimize. **A loss function turns "how wrong
+is the model on these examples?" into one number**, and training becomes: find the parameters that make that number
+small. Every model you'll use, including every LLM, was produced by minimizing a loss.
+
+## 2. What problem does it solve?
+
+- **It makes "good" measurable.** One number per model, comparable across parameter settings.
+- **It says which mistakes matter.** A loss can punish big misses more than small ones, or confident wrong answers
+  far more than hesitant ones.
+- **It gives the search a direction.** A smooth loss changes a little whenever a parameter changes a little, so an
+  optimizer can tell which way is "less wrong". Lesson 1.1.7 uses exactly that.
+
+## 3. Simple explanation
+
+A loss function compares **what the model predicted** with **what was actually true**, for every training example,
+and averages the result into one **wrongness score**. Zero means perfect. Higher means worse.
+
+Two losses cover most of what you'll meet:
+
+- **Mean squared error (MSE)** for predicting numbers. Take each error, square it, average. Squaring makes big misses
+  count far more than small ones.
+- **Cross-entropy** for predicting probabilities. Look at the probability the model gave to the **correct** answer
+  and take `-log` of it. If the model gave the right answer probability 1, the loss is 0. As that probability heads
+  toward 0, the loss grows without limit.
+
+LLMs are trained with cross-entropy: at every position in the text, the loss is `-log P(the actual next token)`.
+
+## 4. Mental model
+
+**A loss function is a scoring function for a search, like a fitness function or a cost function in a route planner.**
+
+```ts
+// The optimizer never sees your data or your intent. It only sees this:
+const loss = (params) => averageWrongness(model(params, inputs), labels);
+// ...and tries to make it smaller.
+```
+
+The optimizer is ruthlessly literal. It will exploit anything the loss allows. If the loss doesn't punish something
+you care about, the model won't avoid it. Think of the loss as the **spec** for training, and review it like one.
+
+## 5. How it works internally
+
+**Squared vs absolute error (regression).** Predicting hours to resolve five tickets:
+
+| Model | Errors (hours) | MSE | MAE (mean absolute error) |
+|---|---|---|---|
+| A: 1 hour off everywhere | 1, 1, 1, 1, 1 | 1 | 1 |
+| B: perfect except one ticket | 0, 0, 0, 0, 5 | 5 | 1 |
+
+MAE says both models are equally wrong. MSE says B is five times worse, because one 5-hour miss squared is 25.
+Neither is "correct". They encode different preferences: **MSE hates big misses and is sensitive to outliers, MAE
+treats every hour the same.**
+
+**Cross-entropy (classification).** For a yes/no label `y` and predicted probability `p`:
+
+```
+loss = -( y·log(p) + (1 - y)·log(1 - p) )
+```
+
+Only one term is active at a time: `-log(p)` when the truth is 1, and `-log(1 - p)` when the truth is 0. Here's one
+example whose true label is 1, scored both ways:
+
+| P(correct answer) | Squared error | Cross-entropy |
+|---|---|---|
+| 0.99 | 0.0001 | 0.010 |
+| 0.9 | 0.0100 | 0.105 |
+| 0.5 | 0.2500 | 0.693 |
+| 0.1 | 0.8100 | 2.303 |
+| 0.01 | 0.9801 | 4.605 |
+| 0.001 | 0.9980 | 6.908 |
+
+Squared error can never exceed 1, so it hardly distinguishes "wrong" from "certain and wrong": going from 0.1 to 0.001
+adds only 0.19. Cross-entropy adds 4.6 over the same range. **Cross-entropy punishes confident wrong answers
+hardest**, which is what you want from anything that outputs probabilities.
+
+<Callout type="fact">
+  A model that always answers 0.5 on a yes/no task scores a cross-entropy of `ln 2 ≈ 0.693`. That's the "knows
+  nothing" baseline. If your classifier's loss isn't clearly below it, it hasn't learned anything useful.
+</Callout>
+
+**Why not just count errors?** Lesson 1.1.2 used "number of misclassified examples" as its loss. That works for a
+brute-force search over one threshold, but it's a staircase: small parameter changes usually don't change the count
+at all, so an optimizer gets no hint which way to move. Cross-entropy changes smoothly with every parameter, which
+is what gradient descent needs (lesson 1.1.7). You still **report** accuracy or error counts. You just don't
+**train** on them.
+
+**Next-token loss.** An LLM outputs a softmax distribution over its whole vocabulary. The loss at each position is
+`-log` of the probability it gave to the token that actually came next, averaged over billions of positions. A model
+guessing uniformly over 32,000 tokens scores `ln 32000 ≈ 10.37`, so every drop below that is learned knowledge. Papers
+often report **perplexity**, `e^loss`, which reads as "how many tokens the model is effectively choosing between".
+
+## 6. Visual explanation
+
+Cross-entropy vs squared error for a true label of 1, as the model's probability for the right answer falls:
+
+```
+ P(correct)   SE = squared error, CE = cross-entropy, █ = 0.25
+ 0.99   SE  0.00      CE  0.01
+ 0.9    SE  0.01      CE  0.11
+ 0.5    SE █ 0.25     CE ███ 0.69
+ 0.1    SE ███ 0.81   CE █████████ 2.30
+ 0.01   SE ████ 0.98  CE ██████████████████ 4.61
+ 0.001  SE ████ 1.00  CE ████████████████████████████ 6.91
+
+ squared error flattens out at 1; cross-entropy keeps rising
+```
+
+What an optimizer "sees" while sweeping one parameter (the output bias of the bot net, from the code example):
+
+```
+ bias:            -9    -7    -5    -4    -3    -2    -1
+ errors:           2     2     2     2     2     1     2
+ cross-entropy:  1.62  1.01  0.69  0.65  0.67  0.78  0.99
+
+ errors:        flat, flat, flat, flat... then a jump
+ cross-entropy: falls, bottoms out near -4, rises again
+```
+
+The loss in the training loop:
+
+```
+ params ─▶ model ─▶ predictions ─┐
+                                 ├─▶ loss(pred, labels) ─▶ 0.65
+ labels ─────────────────────────┘                          │
+   ▲                                                        │
+   └────────── optimizer adjusts params (lesson 1.1.7) ◀────┘
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Loss equivalent |
+|---|---|
+| A fitness function in a search or genetic algorithm | The loss the optimizer minimizes |
+| An SLO with a penalty that grows with severity | MSE: big misses cost disproportionately more |
+| Alerting on p99 latency vs on the mean | Choosing a loss sensitive or insensitive to outliers |
+| A spec or acceptance criteria | The loss defines what "correct" means to training |
+| Goodhart's law on engineering metrics | The optimizer games whatever the loss rewards |
+| Log-scale scoring of a confident wrong answer | Cross-entropy on a probability near 0 |
+| Monitoring an error rate in production | Accuracy and error counts: reported, not trained on |
+
+For backend engineers: a training dashboard's main chart is the loss over time, and reading it is like reading a
+latency graph (lesson 1.1.10 adds the validation loss line). For anyone using LLM APIs: the `logprobs` option some
+providers expose returns exactly the log-probabilities this loss is built from.
+
+## 8. Code example
+
+Every loss from this lesson on small, checkable numbers. Run it with `node --experimental-strip-types loss.ts`
+(Node 22.6+).
+
+```ts
+const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+// Loss functions: (true values, predictions) → one "wrongness" number. Lower is better.
+const mse = (y: number[], p: number[]) => mean(y.map((yi, i) => (yi - p[i]) ** 2));
+const mae = (y: number[], p: number[]) => mean(y.map((yi, i) => Math.abs(yi - p[i])));
+const eps = 1e-12; // never take log(0)
+const bce = (y: number[], p: number[]) =>
+  mean(y.map((yi, i) => -(yi * Math.log(p[i] + eps) + (1 - yi) * Math.log(1 - p[i] + eps))));
+
+// --- 1) Regression: predicted vs actual hours to resolve 5 tickets.
+const actualHours = [2, 3, 4, 5, 6];
+const modelA = [3, 4, 5, 6, 7];  // always 1 hour off
+const modelB = [2, 3, 4, 5, 11]; // perfect, except one 5-hour miss
+for (const [name, p] of [['A (1h off everywhere)', modelA], ['B (one 5h miss)', modelB]] as const) {
+  console.log(`model ${name.padEnd(22)} MSE=${mse(actualHours, p)}  MAE=${mae(actualHours, p)}`);
+}
+
+// --- 2) Classification: the bot net's P(bot) for the four signups in lesson 1.1.4.
+const isBot = [1, 1, 0, 0];
+const botNet = [0.9933, 0.832, 0.0219, 0.0067];
+console.log(`bot net:              MSE=${mse(isBot, botNet).toFixed(4)}  cross-entropy=${bce(isBot, botNet).toFixed(4)}`);
+// Same predictions, except the model grows more and more sure the careful bot is human.
+for (const p of [0.1, 0.01, 0.001]) {
+  const preds = [0.9933, p, 0.0219, 0.0067];
+  console.log(`careful bot P=${String(p).padEnd(6)} MSE=${mse(isBot, preds).toFixed(4)}  cross-entropy=${bce(isBot, preds).toFixed(4)}`);
+}
+
+// --- 3) One example whose true label is 1: how each loss reacts as P(correct) drops.
+console.log('P(correct)  squared error  cross-entropy');
+for (const p of [0.99, 0.9, 0.5, 0.1, 0.01, 0.001]) {
+  console.log(`${String(p).padEnd(11)} ${((1 - p) ** 2).toFixed(4).padEnd(14)} ${(-Math.log(p)).toFixed(3)}`);
+}
+
+// --- 4) Error count vs cross-entropy while sweeping the output bias of the bot net.
+const relu = (z: number) => Math.max(0, z);
+const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
+const signups = [
+  { x: [2.0, 1], y: 1 }, { x: [4.4, 2], y: 1 }, { x: [3.8, 12], y: 0 }, { x: [14.0, 40], y: 0 },
+  { x: [4.9, 6], y: 1 }, { x: [4.5, 3], y: 0 }, // a slow bot and a fast password-manager human
+];
+const predict = ([s, k]: number[], bias: number) => sigmoid(relu(5 - s) + relu(8 - k) + bias);
+console.log('bias  errors  cross-entropy');
+for (const bias of [-9, -7, -5, -4, -3, -2, -1]) {
+  const p = signups.map((e) => predict(e.x, bias));
+  const errors = signups.filter((e, i) => (p[i] > 0.5 ? 1 : 0) !== e.y).length;
+  console.log(`${String(bias).padEnd(5)} ${String(errors).padEnd(7)} ${bce(signups.map((e) => e.y), p).toFixed(4)}`);
+}
+
+// --- 5) Next-token loss: cross-entropy over a tiny vocabulary.
+const softmax = (z: number[]) => {
+  const e = z.map((v) => Math.exp(v - Math.max(...z)));
+  const t = e.reduce((a, b) => a + b, 0);
+  return e.map((v) => v / t);
+};
+const vocab = ['fixed', 'broken', 'slow', 'blue'];
+const logits = [2.0, 1.5, 0.5, -2.0]; // model scores for the word after "the login page is"
+const probs = softmax(logits);
+console.log(vocab.map((w, i) => `${w}=${probs[i].toFixed(3)}`).join('  '));
+for (const target of ['broken', 'blue']) {
+  const loss = -Math.log(probs[vocab.indexOf(target)]);
+  console.log(`true next token "${target}": loss = ${loss.toFixed(3)}`);
+}
+console.log('uniform guess over a 32,000-token vocabulary: loss =', Math.log(32000).toFixed(3));
+```
+
+Output:
+
+```
+model A (1h off everywhere)  MSE=1  MAE=1
+model B (one 5h miss)        MSE=5  MAE=1
+bot net:              MSE=0.0072  cross-entropy=0.0549
+careful bot P=0.1    MSE=0.2026  cross-entropy=0.5845
+careful bot P=0.01   MSE=0.2452  cross-entropy=1.1602
+careful bot P=0.001  MSE=0.2496  cross-entropy=1.7358
+P(correct)  squared error  cross-entropy
+0.99        0.0001         0.010
+0.9         0.0100         0.105
+0.5         0.2500         0.693
+0.1         0.8100         2.303
+0.01        0.9801         4.605
+0.001       0.9980         6.908
+bias  errors  cross-entropy
+-9    2       1.6219
+-7    2       1.0124
+-5    2       0.6912
+-4    2       0.6487
+-3    2       0.6749
+-2    1       0.7804
+-1    2       0.9856
+fixed=0.541  broken=0.328  slow=0.121  blue=0.010
+true next token "broken": loss = 1.114
+true next token "blue": loss = 4.614
+uniform guess over a 32,000-token vocabulary: loss = 10.373
+```
+
+What to take from it:
+
+- **One mistake, two verdicts.** As the model gets surer the careful bot is human, MSE creeps toward a ceiling of
+  0.25 (one error of 1, squared, divided by four examples). Cross-entropy keeps climbing: 0.58, 1.16, 1.74.
+- **The error count is flat** from bias -9 to -3, so it gives a search nothing to follow. Cross-entropy changes at
+  every step and has a clear minimum near -4.
+- **The loss minimum isn't the error-count minimum.** Bias -2 makes the fewest errors on these six examples, while
+  -4 has the lowest cross-entropy, because -2 is overconfident about the fast human it gets wrong. The loss is a
+  proxy for what you care about. Lesson 1.1.11 covers choosing metrics and thresholds.
+- **"broken" was a plausible second choice** (loss 1.114). "blue" was near-impossible to the model, so seeing it
+  costs 4.614.
+
+## 9. Real-world example
+
+**LLM pretraining is one loss, minimized at enormous scale.** Every document in the training set is split into
+tokens. At every position the model predicts a distribution over the vocabulary, and the loss is `-log` of the
+probability of the real next token. Averaged over trillions of tokens, that single number is what pretraining pushes
+down, and published training curves plot it against compute (lesson 1.1.13).
+
+Closer to product work, the choice of loss is a business decision:
+
+- **Delivery-time prediction** with MSE heavily punishes rare, very late estimates, which matter to customers. MAE
+  would accept them in exchange for being slightly better on typical orders.
+- **Fraud detection** often weights the loss so a missed fraud case costs many times more than a false alarm, because
+  that's the real cost ratio.
+
+<Callout type="practice">
+  Write down which mistakes are expensive for your product before choosing or weighting a loss. The optimizer will
+  faithfully minimize whatever you give it, including the wrong thing.
+</Callout>
+
+## 10. Common mistakes
+
+- **Using squared error for probabilities.** It flattens out for confident wrong answers, so the model barely gets
+  pushed away from them. Use cross-entropy.
+- **Taking `log(0)`.** A predicted probability of exactly 0 or 1 gives an infinite loss or `NaN`. Clamp with a small
+  epsilon, or better, compute the loss from the raw scores (logits) as libraries do.
+- **Training on accuracy.** It's piecewise constant, so it gives no direction. Train on a smooth loss and report
+  accuracy.
+- **Comparing loss values across different datasets, vocabularies or tasks.** A cross-entropy of 2.0 means different
+  things with different vocabularies or label sets.
+- **Forgetting outliers.** A few mislabeled or extreme examples can dominate MSE. Look at the examples with the
+  highest loss: they're often data bugs.
+- **Treating low training loss as success.** A model can drive training loss to zero by memorizing (lesson 1.1.10).
+
+## 11. Limitations
+
+- **A loss only measures what it compares.** Next-token loss rewards predicting text well, not being truthful or
+  helpful, which is why LLMs need later tuning (lessons 1.4.6–1.4.7).
+- **Loss values aren't intuitive to stakeholders.** "Cross-entropy 0.28" means little to a product manager, so you
+  translate into metrics like precision and recall (lesson 1.1.11).
+- **Many real goals aren't differentiable.** Things like "users found this helpful" can't be written as a smooth
+  loss directly, so teams use proxies or preference-based training.
+- **Standard losses assume every example is equally important** unless you add weights.
+
+## 12. When to use it
+
+- **MSE** for predicting numbers when large errors are much worse than small ones.
+- **MAE** (or a hybrid like Huber loss) for numbers when outliers or noisy labels shouldn't dominate.
+- **Binary cross-entropy** for yes/no probabilities, with a sigmoid output.
+- **Categorical cross-entropy** for one-of-many choices with a softmax output, including next-token prediction.
+- **As a debugging tool:** sort examples by loss to find mislabeled data and the cases your model finds hardest.
+
+## 13. When NOT to use it
+
+- Don't use training loss alone to decide whether to ship. Evaluate on held-out data with product metrics.
+- Don't invent a custom loss before trying the standard one with example weights. Custom losses are easy to get
+  subtly wrong.
+- Don't use raw loss to compare models with different tokenizers or label sets.
+- When you only call a hosted LLM, you won't compute a training loss at all. You'll evaluate outputs instead (Season 2).
+
+## 14. Interview explanation (30 seconds)
+
+> A loss function measures how wrong a model's predictions are, as one number averaged over examples, and training
+> minimizes it. For regression, mean squared error squares each error, so large misses dominate, while MAE treats all
+> errors linearly and is more robust to outliers. For classification, cross-entropy takes the negative log of the
+> probability assigned to the correct answer, which punishes confident wrong predictions very heavily and gives
+> smooth gradients. LLMs are trained with cross-entropy on the next token. We train on smooth losses, but report
+> metrics like accuracy.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Frame the role first. Training is optimization, and an optimizer needs a scalar objective. The loss maps
+(parameters, data) to that scalar, so it's effectively the spec for what the model should do.
+
+Cover regression. MSE squares errors, so it penalizes large errors disproportionately and is sensitive to outliers.
+MAE is linear and more robust. Give the example: five 1-hour misses and one 5-hour miss have the same MAE, but MSE
+rates the second model five times worse. Huber loss blends the two.
+
+Cover classification. Binary cross-entropy is `-[y log p + (1-y) log(1-p)]`. Contrast it with squared error on a
+probability: squared error is bounded at 1, so a prediction of 0.001 for a positive barely costs more than 0.1,
+while cross-entropy goes from 2.3 to 6.9. It also has a statistical justification: minimizing cross-entropy is
+maximum likelihood, and paired with a sigmoid or softmax it gives clean gradients (the gradient with respect to the
+logit is simply `p - y`).
+
+Explain why you don't train on accuracy: it's a step function of the parameters, so gradients are zero almost
+everywhere. Point out that the loss minimum doesn't always coincide with the best accuracy, which is why you choose a
+decision threshold separately.
+
+Tie it to LLMs. Pretraining minimizes categorical cross-entropy over the vocabulary at every token position.
+A uniform model scores the log of the vocabulary size. Perplexity is the exponent of the loss. And because next-token
+loss doesn't directly measure helpfulness or truthfulness, post-training steps like SFT and RLHF exist.
+
+Close with practice: weight losses by business cost, inspect the highest-loss examples to find label bugs, and judge
+generalization on held-out data rather than training loss.
+
+## 16. Hands-on exercise
+
+Run the code example, then:
+
+1. Change model B's miss from 5 hours to 10 hours. Predict both MSE and MAE before running it.
+2. Compute the binary cross-entropy of a lazy model that answers `0.5` for all four signups. Compare with the bot net.
+3. In the next-token example, compute perplexity (`Math.exp(loss)`) for the true token "broken". Then compute the
+   average loss and perplexity for the three-token sequence "fixed", "broken", "slow", treating each as correct in turn.
+
+<Answer label="Answers from running it">
+  1. MSE jumps from 5 to 20, but MAE only doubles from 1 to 2. Doubling one miss quadruples its squared error.
+  2. `ln 2 ≈ 0.6931`, about 12.6 times the bot net's 0.0549. That's the "knows nothing" baseline.
+  3. Perplexity for "broken" is about 3.047, which is also `1 / 0.328`: as uncertain as choosing between three equally
+     likely words. The three-token average gives a perplexity of about 3.599.
+</Answer>
+
+## 17. Challenge
+
+Design a **cost-weighted loss** for the bot detector and see what it changes.
+
+1. Use the six `signups` from the code example. Suppose a bot that gets through costs 10 times more than a human
+   you block. Write `weightedBce(y, p, botWeight)` that multiplies the loss of each true bot by `botWeight`.
+2. Sweep the output bias again from -9 to -1 in steps of 0.5, with `botWeight` of 1, 3 and 10. For each weight,
+   record the bias with the lowest weighted loss, and the number of missed bots and blocked humans at that bias.
+3. Now keep plain cross-entropy at bias -4 and instead lower the **decision threshold** from 0.5 to 0.2, then 0.1.
+   Compare the errors with the weighted-loss approach.
+4. In three bullets: when would you change the loss, when would you change the threshold, and who in your
+   organization should decide the weight.
+
+<Answer label="Hints">
+  As `botWeight` grows, the best bias moves up: -4 at weight 1 (1 missed bot, 1 blocked human), -2 at weight 3
+  (0 missed, 1 blocked) and -1 at weight 10 (0 missed, 2 blocked). A threshold of 0.2 changes nothing on these six
+  examples, but 0.1 catches the slow bot (its score is 0.130) and matches the weight-3 result, without retraining
+  anything. That's why a threshold change is usually tried first. Changing the loss changes what the model learns. Changing the threshold only
+  changes how you act on its scores. The cost ratio is a product and risk decision, not a modeling one.
+</Answer>
+
+## 18. References
+
+The curated reading for this lesson is below, grouped into must read, should read and optional.

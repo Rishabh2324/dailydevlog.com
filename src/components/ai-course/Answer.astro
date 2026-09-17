@@ -1,0 +1,19 @@
+---
+/** A collapsed answer, so readers attempt the question before seeing it. */
+interface Props {
+  label?: string;
+}
+
+const { label = 'Show answer' } = Astro.props;
+---
+
+<details class="group my-3 rounded-md border border-hairline bg-surface-soft px-4 py-2 [&[open]]:pb-3">
+  <summary
+    class="cursor-pointer text-sm font-semibold text-brand-green-dark marker:text-stone dark:text-brand-green"
+  >
+    {label}
+  </summary>
+  <div class="mt-2 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+    <slot />
+  </div>
+</details>

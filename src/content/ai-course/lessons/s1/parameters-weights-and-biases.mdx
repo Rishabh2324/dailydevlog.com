@@ -1,0 +1,432 @@
+---
+topic: '1.1.5'
+date: 2026-09-17
+summary: A model's parameters — its weights and biases — are the learned numbers that define its behavior, and counting them tells you what a "7B" model is and how much memory it needs.
+estimatedMinutes: 25
+tags: [Foundations, Neural Networks, Model Size]
+prerequisites: ['1.1.4']
+references:
+  - title: Optimizing LLMs for Speed and Memory (section "Lower Precision")
+    source: Hugging Face Transformers docs
+    url: https://huggingface.co/docs/transformers/main/en/llm_tutorial_optimization
+    tier: must
+    level: Beginner
+    why: States the rules of thumb used in this lesson (about 4 GB per billion parameters in float32, 2 GB in bfloat16) and shows why weights dominate inference memory for short inputs.
+  - title: Neural Networks, Chapter 1 — But what is a neural network?
+    source: 3Blue1Brown
+    url: https://www.3blue1brown.com/lessons/neural-networks
+    tier: must
+    level: Beginner
+    why: Counts the weights and biases of a small digit-recognition network on screen, which makes "the model is just these numbers" concrete.
+  - title: Llama 2 — Open Foundation and Fine-Tuned Chat Models
+    source: Touvron et al. (Meta), 2023
+    url: https://arxiv.org/abs/2307.09288
+    tier: should
+    level: Intermediate
+    why: The model whose published configuration this lesson uses to count 6.74 billion parameters by hand. Skim the model sizes and training details.
+  - title: Quantization overview
+    source: Hugging Face Transformers docs
+    url: https://huggingface.co/docs/transformers/main/en/quantization/overview
+    tier: should
+    level: Intermediate
+    why: A survey of the 8-bit and 4-bit methods behind the memory numbers previewed here. Read it when you reach lesson 8.1.3.
+  - title: 'ZeRO: Memory Optimizations Toward Training Trillion Parameter Models'
+    source: Rajbhandari et al. (Microsoft), 2019
+    url: https://arxiv.org/abs/1910.02054
+    tier: optional
+    level: Advanced
+    why: Section 3 is the source of the "16 bytes per parameter" figure for mixed-precision training with Adam, and explains where every byte goes.
+---
+
+import Callout from '../../../../components/ai-course/Callout.astro';
+import Answer from '../../../../components/ai-course/Answer.astro';
+
+## 1. Why does this exist?
+
+In lesson 1.1.4 you set every weight and bias of a tiny network by hand. Nine numbers turned a generic
+`dense → relu → dense → sigmoid` pipeline into a bot detector. Change them and the same code computes something else.
+
+Those numbers have a name: **parameters**. When you read "Llama 2 7B", "a 70B model" or "it runs in 4 GB", people
+are talking about parameters: how many there are and how many bytes each one takes. You need this vocabulary to pick
+models, size GPUs, estimate costs and understand why quantization exists.
+
+## 2. What problem does it solve?
+
+It gives you a way to reason about a model **without understanding its internals**:
+
+- **What does a model file actually contain?** Mostly parameters, plus a little metadata.
+- **How big is the model?** Parameter count is the standard size metric.
+- **Will it fit?** Parameters × bytes per parameter gives you the memory for the weights.
+- **What changes when you fine-tune or quantize?** The values or the storage format of the parameters, not the code.
+
+## 3. Simple explanation
+
+A **parameter** is any number in a model that is learned from data rather than written by a programmer.
+
+- **Weights** scale inputs. In a neuron, there's one weight per input: "how much does this input matter, and in
+  which direction?"
+- **Biases** shift the result. There's one bias per neuron: "what's this neuron's baseline before any input
+  arrives?"
+
+Everything else is **architecture**: how many layers, how many neurons, which activation. That's code and
+configuration chosen by people, and it isn't learned.
+
+<Callout type="note" title="Parameters vs hyperparameters">
+  Settings you choose *before* training, like layer sizes or the learning rate, are **hyperparameters**. Numbers that
+  training finds are **parameters**. When a model is called "7B", only parameters are counted.
+</Callout>
+
+## 4. Mental model
+
+**The model is a giant config file, and the architecture is the program that reads it.**
+
+```ts
+// The "program": fixed code, the same for every model of this architecture
+const run = (params, input) => sigmoid(dense(params.output, relu(dense(params.hidden, input))));
+
+// The "config": learned numbers. Swap this file and you get a different model.
+const params = loadJSON('bot-detector-v3.json');
+```
+
+It's like a feature-flag file or a tuned rules table, but with billions of entries that no one wrote or can read.
+A model download is mostly this file. A fine-tuned model is the same program with edited values. A quantized model
+stores the same values with fewer bits each.
+
+## 5. How it works internally
+
+**Counting a dense layer.** A layer with `n_in` inputs and `n_out` neurons has:
+
+- `n_in × n_out` weights, because every neuron has one weight per input, and
+- `n_out` biases, one per neuron.
+
+The 2-2-1 bot detector from lesson 1.1.4:
+
+| Layer | Weights | Biases | Total |
+|---|---|---|---|
+| hidden (2 → 2) | 2 × 2 = 4 | 2 | 6 |
+| output (2 → 1) | 2 × 1 = 2 | 1 | 3 |
+| **network** | **6** | **3** | **9** |
+
+A classic digit classifier with 784 inputs, 128 hidden neurons and 10 outputs has `784 × 128 + 128 + 128 × 10 + 10 =
+101,770` parameters. Notice the **multiplication**: parameter count grows with the *product* of neighboring layer
+widths, so widening layers grows the model fast. Biases barely register next to the weights.
+
+**Counting a real 7B model.** A transformer (Module 1.3) is built from more of the same: big weight matrices.
+You don't need to know what each matrix does yet. Llama 2 7B's published config gives `vocab_size = 32000`,
+`hidden_size = 4096`, `num_hidden_layers = 32` and `intermediate_size = 11008`, and its layers have no biases. The
+parameters are:
+
+| Part | Formula | Parameters |
+|---|---|---|
+| Token embeddings (a vector per vocab token) | 32,000 × 4,096 | 131,072,000 |
+| Per layer: 4 attention matrices | 4 × 4,096 × 4,096 | 67,108,864 |
+| Per layer: 3 feed-forward matrices | 3 × 4,096 × 11,008 | 135,266,304 |
+| Per layer: 2 normalization vectors | 2 × 4,096 | 8,192 |
+| All 32 layers | 32 × 202,383,360 | 6,476,267,520 |
+| Final normalization vector | 4,096 | 4,096 |
+| Output head (a score per vocab token) | 32,000 × 4,096 | 131,072,000 |
+| **Total** | | **6,738,415,616** |
+
+That's the "7B": about 6.74 billion numbers, 96.1% of them in the 32 repeated layers.
+
+**From parameters to memory.** Each parameter is stored as a number with some precision:
+
+| Precision | Bytes per parameter | Llama 2 7B weights |
+|---|---|---|
+| fp32 (32-bit float) | 4 | 27.0 GB (25.1 GiB) |
+| fp16 / bf16 (16-bit float) | 2 | 13.5 GB (12.6 GiB) |
+| int8 (8-bit, quantized) | 1 | 6.7 GB (6.3 GiB) |
+| int4 (4-bit, quantized) | 0.5 | 3.4 GB (3.1 GiB) |
+
+The rule of thumb: **billions of parameters × bytes per parameter ≈ GB of weights.** A 7B model in 16-bit needs
+about 14 GB, and a 70B model about 140 GB.
+
+<Callout type="fact" title="Weights are not the whole bill">
+  Running a model also needs memory for activations and, for LLMs, the KV cache, which grows with context length
+  and batch size (lesson 1.3.11). Training is far more expensive: mixed-precision training with the Adam optimizer
+  keeps about 16 bytes per parameter (weights, gradients and optimizer state), so roughly 108 GB for a 7B model
+  before any activations.
+</Callout>
+
+<Callout type="emerging" title="Quantization preview">
+  Real 4-bit formats also store scale factors for groups of weights, so the effective size is a bit above
+  4 bits per parameter, and quality can drop. How it works and what it costs is lesson 8.1.3.
+</Callout>
+
+## 6. Visual explanation
+
+Where the 9 parameters live in the bot detector:
+
+```
+ inputs        hidden layer                output layer
+
+ seconds ──w11=-1──┐
+          ╲ w21=0  ├─▶ h1 (+ b1=5) ──v1=1──┐
+           ╳       │                        ├─▶ out (+ c=-5)
+          ╱ w12=0  ├─▶ h2 (+ b2=8) ──v2=1──┘
+ keys    ──w22=-1──┘
+
+ weights: w11 w12 w21 w22 v1 v2  = 6
+ biases:  b1 b2 c                = 3
+ total                           = 9
+```
+
+The same model as a flat array of float32 values, which is roughly what a weights file stores:
+
+```
+ index:   0    1    2    3    4    5    6    7    8
+ value:  -1    0    0   -1    5    8    1    1   -5
+         └─ hidden weights ─┘ └ h b ┘ └ out w ┘ └ b ┘
+ 9 params × 4 bytes = 36 bytes
+```
+
+Where Llama 2 7B's 6.74 billion parameters go:
+
+```
+ embeddings   ▏ 1.9%   (131M)
+ 32 layers    ████████████████████████████████████▌ 96.1%  (6.48B)
+   attention    ≈ 1/3 of each layer
+   feed-forward ≈ 2/3 of each layer
+ output head  ▏ 1.9%   (131M)
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Parameter equivalent |
+|---|---|
+| A config file or feature-flag store | The weights file: values that change behavior without code changes |
+| A compiled binary built by CI | A trained checkpoint produced by a training run |
+| A patch or override on top of config | Fine-tuning edits the values; adapters such as LoRA add a small set of extra ones (lesson 8.2) |
+| Choosing `int32` vs `int64` columns | Choosing fp16 vs int4: storage and memory against precision |
+| Bundle size | Model size drives download time, cold start and hardware cost |
+| Loading a large file into RAM before serving | Loading weights into GPU memory before the first request |
+| Versioning artifacts by hash | Pin model versions: a different weights file is a different program |
+
+For backend engineers: the weights must fit in **GPU memory**, not just on disk, and load time scales with file
+size, which affects autoscaling and cold starts. For frontend engineers: in-browser models are limited by download
+size and device memory, which is why they're usually small and quantized.
+
+## 8. Code example
+
+Count parameters, store them as a config and estimate memory. Run it with
+`node --experimental-strip-types params.ts` (Node 22.6+).
+
+```ts
+// 1) Parameters of a fully connected network: each layer has (inputs × outputs) weights + outputs biases.
+function countParams(sizes: number[]) {
+  let total = 0;
+  for (let i = 1; i < sizes.length; i++) {
+    const weights = sizes[i - 1] * sizes[i];
+    const biases = sizes[i];
+    console.log(`  layer ${i}: ${sizes[i - 1]}→${sizes[i]}  weights=${weights}  biases=${biases}`);
+    total += weights + biases;
+  }
+  return total;
+}
+console.log('bot net 2-2-1:', countParams([2, 2, 1]));
+console.log('digit classifier 784-128-10:', countParams([784, 128, 10]).toLocaleString('en-US'));
+
+// 2) The weights ARE the model: the 2-2-1 bot detector from lesson 1.1.4 as a config file.
+const botNet = {
+  architecture: { layers: [2, 2, 1], activations: ['relu', 'sigmoid'] }, // code, not parameters
+  parameters: {
+    hidden: { weights: [[-1, 0], [0, -1]], biases: [5, 8] },
+    output: { weights: [[1, 1]], biases: [-5] },
+  },
+};
+const flat = new Float32Array([
+  ...botNet.parameters.hidden.weights.flat(), ...botNet.parameters.hidden.biases,
+  ...botNet.parameters.output.weights.flat(), ...botNet.parameters.output.biases,
+]);
+console.log('flat parameters:', Array.from(flat));
+console.log('bytes on disk as float32:', flat.byteLength);
+console.log('bytes as pretty JSON:', JSON.stringify(botNet.parameters, null, 2).length);
+
+// 3) Count a real 7B model from its config (Llama 2 7B: no biases, untied embeddings).
+const cfg = { vocab: 32000, d: 4096, layers: 32, ffn: 11008 };
+const embed = cfg.vocab * cfg.d;
+const attention = 4 * cfg.d * cfg.d;     // query, key, value, output projections
+const mlp = 3 * cfg.d * cfg.ffn;         // gate, up, down projections
+const norms = 2 * cfg.d;                 // two RMSNorm scale vectors per layer
+const perLayer = attention + mlp + norms;
+const total = embed + cfg.layers * perLayer + cfg.d + cfg.vocab * cfg.d; // + final norm + output head
+const fmt = (n: number) => n.toLocaleString('en-US');
+console.log('embedding:', fmt(embed), '| per layer:', fmt(perLayer), '| total:', fmt(total));
+console.log('share in the 32 layers:', ((cfg.layers * perLayer) / total * 100).toFixed(1) + '%');
+
+// 4) Memory for the weights alone at different precisions.
+const precisions: [string, number][] = [['fp32', 4], ['fp16/bf16', 2], ['int8', 1], ['int4', 0.5]];
+for (const [name, bytes] of precisions) {
+  const b = total * bytes;
+  console.log(`${name.padEnd(9)} ${(b / 1e9).toFixed(1)} GB  (${(b / 2 ** 30).toFixed(1)} GiB)`);
+}
+console.log('training with Adam, mixed precision (~16 bytes/param):', (total * 16 / 1e9).toFixed(0), 'GB');
+```
+
+Output:
+
+```
+  layer 1: 2→2  weights=4  biases=2
+  layer 2: 2→1  weights=2  biases=1
+bot net 2-2-1: 9
+  layer 1: 784→128  weights=100352  biases=128
+  layer 2: 128→10  weights=1280  biases=10
+digit classifier 784-128-10: 101,770
+flat parameters: [
+  -1, 0, 0, -1, 5,
+   8, 1, 1, -5
+]
+bytes on disk as float32: 36
+bytes as pretty JSON: 272
+embedding: 131,072,000 | per layer: 202,383,360 | total: 6,738,415,616
+share in the 32 layers: 96.1%
+fp32      27.0 GB  (25.1 GiB)
+fp16/bf16 13.5 GB  (12.6 GiB)
+int8      6.7 GB  (6.3 GiB)
+int4      3.4 GB  (3.1 GiB)
+training with Adam, mixed precision (~16 bytes/param): 108 GB
+```
+
+What to take from it:
+
+- **Nine numbers are the whole bot detector.** The architecture line is code. Only `flat` is learned.
+- **Binary beats JSON by 7.6×** even at this size (36 vs 272 bytes). That's why real weights ship as binary tensor
+  files, such as `.safetensors` or GGUF, never as JSON.
+- **The hand count matches the label.** 6,738,415,616 is the "7B" in the name, derived from four config values.
+
+<Callout type="note">
+  GB here means 10⁹ bytes and GiB means 2³⁰. GPU vendors usually quote GiB-style numbers as "GB", so an "80 GB" GPU
+  holds about 80 GiB. Mixing them up is a 7% error, which matters when a model barely fits.
+</Callout>
+
+## 9. Real-world example
+
+**Choosing a model to self-host on a single GPU.** Suppose your team wants to run an open-weight model on a 24 GB
+card for an internal tool.
+
+- A **7B model at 16-bit** needs about 13.5 GB of weights, which leaves room for the KV cache and batching.
+- A **13B model at 16-bit** needs about 26 GB, which doesn't fit. At 4-bit it drops to about 6.5 GB and fits
+  comfortably, possibly with some quality loss.
+- A **70B model** needs about 140 GB at 16-bit and still about 35 GB at 4-bit, so it needs multiple GPUs or a
+  bigger card.
+
+The same math applies when you use hosted APIs: providers price larger models higher partly because more parameters
+mean more memory and more arithmetic per token.
+
+<Callout type="practice">
+  Before downloading or provisioning anything, do the napkin math: parameters in billions × bytes per parameter,
+  then add headroom for the KV cache and runtime. Then check the real file sizes on the model page, because
+  embeddings, formats and quantization schemes vary.
+</Callout>
+
+## 10. Common mistakes
+
+- **Assuming the file size equals the RAM you need.** Inference also needs activations and a KV cache, and the
+  runtime adds overhead.
+- **Using inference memory to plan training.** Full training with Adam needs several times more memory per parameter
+  than 16-bit inference.
+- **Treating parameter count as quality.** A newer, well-trained 8B model can beat an older 70B one. Size is cost and
+  capacity, not a benchmark score.
+- **Confusing parameters with hyperparameters, or with tokens.** "Trained on 2T tokens" is data size, not model size.
+- **Mixing GB and GiB,** or forgetting the bytes-per-parameter factor entirely ("7B means 7 GB").
+- **Thinking weights are readable config.** They're config in the sense of "data, not code", but no individual
+  number has a human meaning you can edit safely.
+
+## 11. Limitations
+
+- **Parameter count is a coarse size metric.** Mixture-of-experts models store many parameters but use only some of
+  them per token (lesson 1.4.10), so "total" and "active" parameters differ.
+- **Memory math is approximate.** Tied embeddings, grouped-query attention, quantization block sizes and runtime
+  overhead all move the real number.
+- **Counting parameters tells you nothing about what they encode.** Two models with identical architectures and
+  counts can behave completely differently.
+- **Formulas are architecture-specific.** The Llama count above doesn't transfer unchanged to models with biases,
+  different feed-forward shapes or shared embeddings.
+
+## 12. When to use it
+
+- Sizing hardware for self-hosting or fine-tuning, and comparing on-device options.
+- Reading model cards and release announcements critically.
+- Estimating cold-start time, download size and storage costs for model artifacts.
+- Explaining cost differences between model tiers to product stakeholders.
+
+## 13. When NOT to use it
+
+- Don't pick a model on parameter count alone. Evaluate on your own task (Season 2 evals).
+- Don't use this napkin math as final capacity planning for production serving. Load-test with your real context
+  lengths and concurrency (Season 7).
+- Don't hand-count parameters for a model you can load: frameworks report exact counts, and model pages list file
+  sizes.
+
+## 14. Interview explanation (30 seconds)
+
+> Parameters are the numbers a model learns: weights, which scale each input to a neuron, and biases, which shift
+> each neuron's output. The architecture is fixed code, while the parameters are data, like a huge config file. A
+> dense layer has inputs × outputs weights plus one bias per output, so counts grow multiplicatively with width. A
+> "7B" model has about 7 billion of these. Weight memory is roughly parameters times bytes per parameter: about
+> 14 GB at 16-bit, and about 3.5 GB at 4-bit, plus extra for activations and the KV cache.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Begin with the definition: parameters are everything training adjusts. In a neuron, weights multiply inputs and the
+bias adds an offset. Separate them from hyperparameters, like layer sizes or learning rate, which people choose.
+
+Show the counting rule for a dense layer, `n_in × n_out + n_out`, and point out that weights dominate and that count
+grows with the product of widths, so doubling the width of every layer roughly quadruples the dense weights.
+
+Then scale up with a real example. For Llama 2 7B, four config numbers (vocabulary 32,000, hidden size 4,096,
+32 layers, feed-forward size 11,008) give 6.74 billion parameters: embeddings and output head of 131M each, and about
+202M per layer from four attention and three feed-forward matrices. About 96% of the model lives in the repeated
+layers.
+
+Move to memory. Bytes per parameter depend on precision: 4 for fp32, 2 for fp16/bf16, 1 for int8, about half a
+byte for 4-bit. That gives the napkin rule: 7B at 16-bit is about 14 GB of weights. Inference also needs activations
+and a KV cache that grows with context and batch size. Training needs much more, about 16 bytes per parameter with
+mixed precision and Adam, which is why training memory techniques like ZeRO sharding exist.
+
+Close with judgment. Parameter count is a proxy for capacity and cost, not for quality. MoE models separate total from
+active parameters. And for engineering decisions, such as which GPU, which quantization or which API tier, this
+arithmetic gets you to the right order of magnitude before you measure.
+
+## 16. Hands-on exercise
+
+Run the code example, then extend `countParams` and the memory table:
+
+1. Count the parameters of a `[784, 256, 128, 10]` network. What fraction are biases? How many bytes does it need
+   in float32?
+2. Compare `[1000, 1000, 1000]` with `[2000, 2000, 2000]`. How much bigger is the second one?
+3. Llama 2 13B's config has `hidden_size = 5120`, `num_hidden_layers = 40` and `intermediate_size = 13824`, with the
+   same vocabulary. Reuse the 7B formula to count its parameters, then estimate its weight memory in 16-bit and 4-bit.
+
+<Answer label="Answers from running it">
+  1. 235,146 parameters. Only 394 are biases (0.17%), and it needs 940,584 bytes, a bit under 1 MB, in float32.
+  2. 2,002,000 against 8,004,000, almost exactly 4×: doubling width quadruples the weights while biases only double.
+  3. 13,015,864,320 parameters, about 26.0 GB at 16-bit and 6.5 GB at 4-bit. That's why a 13B model needs quantizing
+     to fit on a 24 GB card.
+</Answer>
+
+## 17. Challenge
+
+Build a **"will it fit?" calculator**.
+
+1. Write `estimateMemory({ params, bytesPerParam, layers, hiddenSize, contextLength, batchSize })`. It should return
+   weight memory plus an approximate KV cache: for each layer, one key and one value vector of `hiddenSize` numbers per
+   token, stored at 16-bit. (This is a simplification; grouped-query attention stores fewer, which you'll see in
+   lesson 1.3.11.)
+2. Use it for Llama 2 7B at 16-bit with a context of 4,096 tokens and batch sizes 1, 4 and 16. At which batch size
+   does the total pass 24 GB? 80 GB?
+3. Add a `quantization` option (`'fp16' | 'int8' | 'int4'`) that only changes the weights, and report how many more
+   concurrent requests fit on a 24 GB GPU at int4.
+4. In three bullets, explain why long contexts can cost more memory than the weights themselves, and what that means
+   for pricing long-context API calls.
+
+<Answer label="Hints">
+  KV cache bytes ≈ `2 × layers × hiddenSize × contextLength × batchSize × 2`. For Llama 2 7B that's
+  `2 × 32 × 4096 × 4096 × 2 ≈ 2.1 GB` per full-length sequence, so the cache for a batch of 16 is bigger than the
+  weights themselves. Quantizing the weights frees room for more sequences, but the cache stays at 16-bit in this
+  model, so it becomes the bottleneck quickly. That's one reason long-context requests are expensive to serve.
+</Answer>
+
+## 18. References
+
+The curated reading for this lesson is below, grouped into must read, should read and optional.

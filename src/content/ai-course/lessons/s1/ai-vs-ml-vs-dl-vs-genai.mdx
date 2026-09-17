@@ -1,0 +1,332 @@
+---
+topic: '1.1.1'
+date: 2026-09-17
+summary: AI, machine learning, deep learning and generative AI are nested sets — and knowing which layer a system lives in tells you how to build, test and debug it.
+estimatedMinutes: 25
+tags: [Foundations]
+references:
+  - title: Machine Learning Crash Course
+    source: Google for Developers
+    url: https://developers.google.com/machine-learning/crash-course
+    tier: must
+    level: Beginner
+    why: A concise, engineer-friendly intro to what ML is, how models learn from data, and the vocabulary used throughout this course.
+  - title: Neural Networks (video series, chapter 1)
+    source: 3Blue1Brown
+    url: https://www.3blue1brown.com/topics/neural-networks
+    tier: must
+    level: Beginner
+    why: The best visual intuition for what "a network of learned weights" actually means. Watch chapter 1 alongside this lesson.
+  - title: Machine Learning Glossary
+    source: Google for Developers
+    url: https://developers.google.com/machine-learning/glossary
+    tier: should
+    level: Beginner
+    why: A dependable reference for terms like model, feature, label, training and inference when you meet them in docs.
+  - title: Deep Learning (Chapter 1, Introduction)
+    source: Goodfellow, Bengio & Courville — MIT Press
+    url: https://www.deeplearningbook.org/
+    tier: optional
+    level: Intermediate
+    why: The canonical textbook. Chapter 1 explains the AI → ML → representation learning → deep learning hierarchy in depth, with history.
+---
+
+import Callout from '../../../../components/ai-course/Callout.astro';
+import Answer from '../../../../components/ai-course/Answer.astro';
+
+## 1. Why does this exist?
+
+"AI" is used for everything, from a spam filter to a coding agent that opens pull requests. When one word covers systems with completely different internals, engineers make bad decisions. They reach for an LLM when a regex would do, test a model like a pure function, or expect a rules engine to handle language it has never seen.
+
+These four terms exist to name **how** a system gets its behavior. That "how" decides how you build it, test it, and debug it when it fails.
+
+## 2. What problem does it solve?
+
+It gives you a map. For any "AI feature" you can ask **which layer is this?**, and the answer tells you:
+
+- where its behavior comes from (code you wrote, or patterns learned from data)
+- whether its output is predictable (deterministic or probabilistic)
+- what it needs (rules, labeled data, huge datasets and GPUs, or an API key)
+- how it fails (a missing rule, a biased dataset, or confident-sounding hallucination)
+
+## 3. Simple explanation
+
+The four terms are **nested sets**, each a subset of the one before:
+
+- **Artificial Intelligence (AI):** the broad goal. Any technique that makes computers do tasks we associate with intelligence. That includes hand-written rules: a chess engine using search, or an expert system full of `if` statements.
+- **Machine Learning (ML):** the subset of AI where **you don't write the logic; you write a learning procedure and give it data**. The program *fits* its own logic from examples.
+- **Deep Learning (DL):** the subset of ML that uses **neural networks with many layers**. These networks learn their own features from raw data (pixels, characters, audio) instead of relying on features you engineer by hand.
+- **Generative AI (GenAI):** the subset of deep learning (in practice) whose models **produce new content**, such as text, images, code or audio, rather than only a label or number. LLMs like the ones behind ChatGPT and Claude live here.
+
+<Callout type="fact">
+  Most generative AI in production today is deep learning, specifically transformer-based models. Historically,
+  though, "generative model" is a statistical idea older than deep learning. You'll meet the generative vs
+  discriminative distinction properly in lesson 1.1.3.
+</Callout>
+
+## 4. Mental model
+
+Think about **who writes the function**.
+
+```
+AI      f(x) behaves "intelligently"   → you may or may not write it
+ML      f(x) is fitted from examples   → you write the training loop
+DL      f(x) is a deep neural network  → you pick architecture + data
+GenAI   f(x) outputs new content       → you mostly call it via an API
+```
+
+As a web developer: writing `validateEmail()` with a regex is classic software. Calling a hosted model that
+*learned* what valid-looking emails are from millions of examples is ML. In both cases you have a function,
+but where its logic came from is different.
+
+## 5. How it works internally
+
+**Rule-based AI.** Knowledge is written explicitly as rules, search algorithms or logic. Behavior is fully
+determined by code, so you debug it by reading the rules.
+
+**Machine learning.** You pick a *model family* (for example "a weighted sum followed by a threshold") with adjustable
+numbers called **parameters**. Training repeatedly:
+
+1. runs the model on an example (a *prediction*),
+2. measures how wrong it was (the *loss*),
+3. nudges the parameters to be a little less wrong (*optimization*, usually gradient descent).
+
+After training, the parameters are frozen and the model runs on new inputs. That's **inference**. Traditional ML
+often depends on hand-engineered **features**: you decide the inputs are "number of links" and "contains 'free'".
+
+**Deep learning.** The model family is a neural network: many layers of simple units, each a weighted sum plus a
+non-linear function. Depth lets early layers learn simple patterns and later layers combine them into complex ones.
+Crucially, **the network learns the features itself**, straight from raw input. The price is far more data and
+compute.
+
+**Generative AI.** A deep model is trained to model the data distribution itself, so it can *sample* new examples
+from it. An LLM is trained to predict the next token of text. Run that prediction in a loop and it writes. Lessons
+1.4.1–1.4.4 open up this loop.
+
+## 6. Visual explanation
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ARTIFICIAL INTELLIGENCE                                      │
+│  rules · search · planning · expert systems                  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ MACHINE LEARNING                                       │  │
+│  │  logistic regression · decision trees · k-means        │  │
+│  │  ┌──────────────────────────────────────────────────┐  │  │
+│  │  │ DEEP LEARNING                                    │  │  │
+│  │  │  CNNs · RNNs · transformers · embedding models   │  │  │
+│  │  │  ┌────────────────────────────────────────────┐  │  │  │
+│  │  │  │ GENERATIVE AI                              │  │  │  │
+│  │  │  │  LLMs · image/audio/video generation       │  │  │  │
+│  │  │  └────────────────────────────────────────────┘  │  │  │
+│  │  └──────────────────────────────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Where the logic comes from:
+
+```
+Classic software:   Rules (you) + Data  ──▶  Answers
+Machine learning:   Data + Answers      ──▶  Rules (learned parameters)
+                    then: new Data + learned Rules ──▶ Answers
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | AI equivalent |
+|---|---|
+| Writing business logic | Rule-based AI |
+| Build step producing an artifact | **Training** produces a model (a file of parameters) |
+| Runtime executing the artifact | **Inference** runs the model on new input |
+| Pure, deterministic function | Rule-based AI; ML models with fixed inputs are *usually* deterministic |
+| Non-deterministic external service | Generative models with sampling: same input, different outputs |
+| Unit tests with exact assertions | Work for rules; ML needs **evaluation on datasets** (lesson 2.6) |
+| Config file | Model weights, but billions of numbers nobody can read |
+
+For a frontend engineer the most important shift is this: **generative AI is a probabilistic dependency**.
+Treat it like a flaky network call that can also be confidently wrong. Validate what it returns, handle
+failures, and design the UI for uncertainty.
+
+## 8. Code example
+
+The same task, "is this support message urgent?", solved at three layers. The point is the *shape* of each
+solution, not production quality.
+
+```ts
+// 1) Rule-based AI: you write the logic. Deterministic, transparent, brittle.
+function isUrgentRules(message: string): boolean {
+  const text = message.toLowerCase();
+  return ['down', 'outage', 'urgent', 'cannot log in', 'data loss'].some((kw) => text.includes(kw));
+}
+
+// 2) Machine learning: logic is *fitted* from labeled examples.
+// Tiny logistic regression over hand-picked features, trained with gradient descent.
+type Example = { text: string; urgent: boolean };
+
+const features = (text: string): number[] => {
+  const t = text.toLowerCase();
+  return [
+    t.includes('down') ? 1 : 0,
+    t.includes('!') ? 1 : 0,
+    t.includes('please') ? 1 : 0,
+    Math.min(t.length / 200, 1),
+  ];
+};
+
+const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
+
+function train(examples: Example[], epochs = 500, learningRate = 0.5) {
+  const weights = new Array(features('').length).fill(0);
+  let bias = 0;
+  for (let epoch = 0; epoch < epochs; epoch++) {
+    for (const { text, urgent } of examples) {
+      const x = features(text);
+      const prediction = sigmoid(x.reduce((sum, xi, i) => sum + xi * weights[i], bias));
+      const error = prediction - (urgent ? 1 : 0); // gradient of log-loss w.r.t. the logit
+      x.forEach((xi, i) => (weights[i] -= learningRate * error * xi));
+      bias -= learningRate * error;
+    }
+  }
+  // The "model" is just these numbers — the output of training.
+  return (text: string) => sigmoid(features(text).reduce((s, xi, i) => s + xi * weights[i], bias)) > 0.5;
+}
+
+// 3) Generative AI (deep learning): call a pretrained LLM. No training, no features —
+// instructions in natural language, output you must validate.
+async function isUrgentLLM(message: string): Promise<boolean> {
+  const res = await fetch('/api/classify', {
+    // your backend calls the provider; API keys never live in the browser (lesson 2.2.4)
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      instruction: 'Reply with exactly "urgent" or "not_urgent".',
+      message,
+    }),
+  });
+  const { label } = (await res.json()) as { label: string };
+  if (label !== 'urgent' && label !== 'not_urgent') throw new Error(`Unexpected label: ${label}`);
+  return label === 'urgent';
+}
+```
+
+Notice what changes as you move down: **less logic written by you, more behavior learned from data, and more
+need to validate outputs**.
+
+## 9. Real-world example
+
+A typical customer-support platform uses all three layers side by side:
+
+- **Rules:** route tickets from enterprise customers to a priority queue, and block known spam domains.
+- **Classic ML:** a gradient-boosted model predicts churn risk from account features, retrained weekly.
+- **Deep learning:** an embedding model powers semantic search over help-center articles (Season 3).
+- **Generative AI:** an LLM drafts replies grounded in retrieved articles (Season 4). A human approves them before sending.
+
+<Callout type="practice">
+  Production systems combine layers. Use the simplest layer that meets the requirement, and put deterministic
+  checks around the probabilistic ones.
+</Callout>
+
+## 10. Common mistakes
+
+- **Using "AI" to mean "LLM".** It hides cheaper, more reliable options such as rules or small classifiers.
+- **Reaching for GenAI for classification with a fixed label set** without comparing cost, latency and accuracy against a small model or rules.
+- **Assuming ML output is always non-deterministic.** A trained classifier with fixed weights is usually deterministic. The randomness in LLM output comes mostly from *sampling* (lesson 1.4.4).
+- **Assuming deep learning "understands"** the way people do. It learns statistical patterns, which can be remarkably capable and still wrong in ways a person wouldn't be.
+- **Testing a model like a pure function** with a handful of exact assertions instead of evaluating it on a dataset.
+
+## 11. Limitations
+
+- The boundaries are **fuzzy in practice**. A hybrid system (rules + ML + LLM) doesn't fit one box, and marketing uses the terms loosely.
+- "Generative vs not" describes **how a model is used** as much as what it is. An LLM can act as a classifier, and an embedding model is deep learning but generates no content.
+- This taxonomy says nothing about **quality**. A rules engine can beat a deep model on a narrow, well-specified task.
+
+## 12. When to use it
+
+Use this map at the start of any AI feature discussion:
+
+- **Rules** when the logic is known, stable, auditable and cheap to express.
+- **Classic ML** when you have structured/tabular data, labels, and need cheap, fast, explainable predictions.
+- **Deep learning** when inputs are unstructured (text, images, audio) and patterns are too complex to hand-code.
+- **Generative AI** when the output itself is language/content, or when you need broad capability with no training data (zero-shot).
+
+## 13. When NOT to use it
+
+Don't pick a layer because it's fashionable:
+
+- Don't use GenAI when a deterministic answer is required and a rule can express it: tax calculations, permissions, validation.
+- Don't train your own model when a pretrained one plus a good prompt or retrieval solves the task (Seasons 2–4).
+- Don't argue about labels in design reviews. The useful question is "where does the behavior come from, and how will we verify it?"
+
+## 14. Interview explanation (30 seconds)
+
+> AI is the broad goal of making machines perform intelligent tasks, including hand-written rules. Machine learning
+> is the subset where the logic is learned from data instead of written by hand. Deep learning is ML using
+> multi-layer neural networks that learn their own features from raw data like text or images. Generative AI is
+> deep learning used to produce new content, such as LLMs predicting the next token. The practical difference
+> is where behavior comes from, which changes how you build, test and trust the system.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start with the nesting: **AI ⊃ ML ⊃ DL ⊃ GenAI**, and define each by *where its behavior comes from*.
+
+Classic AI encodes knowledge explicitly: search, planning, expert-system rules. It's transparent and predictable,
+but brittle, because it only handles cases someone anticipated.
+
+Machine learning flips the relationship. Instead of writing rules, you choose a parameterized model, define a
+loss that measures error, and use an optimizer like gradient descent to fit the parameters to labeled examples.
+Training is a build step. Inference runs the frozen model. Classic ML works well on structured data but often
+depends on hand-engineered features.
+
+Deep learning replaces hand-crafted features with **representation learning**. Stacked layers of a neural network
+learn features themselves: edges then shapes in vision, and sub-word patterns then syntax then semantics in language.
+That needs much more data and compute, which is why GPUs matter. Transformers (2017) made it practical to train on
+internet-scale text in parallel.
+
+Generative AI uses those deep models to model the data distribution and sample new content. An LLM predicts the
+next token. Pretraining on huge corpora, followed by instruction tuning and preference optimization, turns it into
+an assistant.
+
+Then give the engineering consequences. GenAI is a **probabilistic dependency**: outputs vary with sampling, can be
+fluent but wrong, and must be validated. So you evaluate on datasets rather than rely only on unit tests, you add
+deterministic guardrails, and you pick the simplest layer that meets the requirement. Close with a concrete
+example like the support platform above, where rules, ML, embeddings and an LLM each do the part they're best at.
+
+## 16. Hands-on exercise
+
+**Classify ten features you've used.** Pick ten "smart" features from products you use: autocomplete in your IDE,
+Gmail spam filtering, Spotify recommendations, Figma's AI, GitHub Copilot, face unlock, a form's address
+validation, and so on. For each, write down:
+
+1. the layer you believe it lives in (rules / classic ML / deep learning / GenAI),
+2. what its input and output are,
+3. how you'd expect it to fail.
+
+Then **run the code example**. Put the three functions in a TypeScript file. Create 12 labeled
+support messages (6 urgent, 6 not), train the ML version on 8, and compare the rule-based and ML versions on the
+remaining 4. Log accuracy for each.
+
+<Answer label="What you should notice">
+  The rule version fails on phrasings you didn't anticipate ("nothing loads since this morning"). The ML version
+  depends heavily on your features and your tiny dataset. With 8 examples it can easily learn something silly,
+  like "exclamation marks mean urgent". That's overfitting (lesson 1.1.10). Both effects are the point: rules
+  are brittle, and learned models only know what their data and features let them know.
+</Answer>
+
+## 17. Challenge
+
+Replace the hand-picked features with a **bag-of-words** representation. Build a vocabulary from your
+training messages, turn each message into a vector of word counts, and train the same logistic regression over
+it. Then:
+
+- Compare it with the hand-featured model on a held-out set of at least 20 messages you write yourself.
+- Inspect the learned weights. Which words push toward "urgent"? Do any make no sense?
+- Write a short note: what would you need to reach 95% accuracy, and at what point would an LLM or embedding-based
+  classifier become the better engineering choice?
+
+You've just built, by hand, the exact limitation (words as isolated counts, no meaning or context) that embeddings
+and transformers were invented to fix. You'll meet those in Module 1.2.
+
+## 18. References
+
+The curated reading for this lesson is below, grouped into must read, should read and optional.

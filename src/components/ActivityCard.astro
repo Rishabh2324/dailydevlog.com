@@ -12,11 +12,13 @@ const { item } = Astro.props;
 const kindLabel: Record<ActivityItem['kind'], string> = {
   dsa: 'DSA',
   'daily-log': 'Daily Log',
+  'ai-course': 'AI Course',
 };
 
 const kindColor: Record<ActivityItem['kind'], string> = {
   dsa: 'text-accent-blue',
   'daily-log': 'text-accent-purple',
+  'ai-course': 'text-brand-green-dark dark:text-brand-green',
 };
 ---
 

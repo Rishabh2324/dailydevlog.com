@@ -29,7 +29,7 @@ You're given the heads of two sorted (ascending) singly linked lists, `list1` an
 
 **Phase 1 — merge while both pointers have nodes:** track `p1` into `list1`, `p2` into `list2`, and a `tail` pointer building the result (starting from a sentinel node). At each step, splice whichever of `p1.val`/`p2.val` is smaller (ties go to `p1`) onto `tail`, then advance that source pointer and `tail`.
 
-| p1 | p2 | p1.val <= p2.val? | spliced | tail now points at | p1 after | p2 after |
+| p1 | p2 | p1.val &lt;= p2.val? | spliced | tail now points at | p1 after | p2 after |
 |----|----|---------------------|---------|----------------------|----------|----------|
 | 1  | 1  | yes (tie → p1)       | 1 (from list1) | 1                     | 2        | 1        |
 | 2  | 1  | no                   | 1 (from list2) | 1 (list2)             | 2        | 3        |
