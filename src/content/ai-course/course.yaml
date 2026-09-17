@@ -2,11 +2,12 @@
 # A topic becomes a live lesson when an MDX file in ./lessons sets `topic: "<id>"`.
 # Topic URLs are slugified from `title` unless `slug` is set. Levels: L1 explain · L2 build ·
 # L3 design · L4 internals · L5 operate at scale.
+# Slimmed on 2026-09-17 from 295 to 87 topics: one lesson per important idea or term, depth lives in references.
 
 - id: s1
   number: 1
   title: AI & LLM Foundations
-  summary: How models actually work — from learned functions to transformers to next-token generation.
+  summary: The core ideas behind AI models, from learning from examples to how chatbots write answers.
   modules:
     - id: '1.1'
       title: From AI to deep learning
@@ -18,474 +19,249 @@
         - { id: '1.1.4', title: 'Neural networks: neurons, layers, activations', slug: neural-networks, level: L1 }
         - { id: '1.1.5', title: 'Parameters, weights and biases', level: L1 }
         - { id: '1.1.6', title: 'Loss functions', level: L1 }
-        - { id: '1.1.7', title: 'Gradient descent and optimization', level: L2 }
+        - { id: '1.1.7', title: 'Gradient descent and optimization', level: L1 }
         - { id: '1.1.8', title: 'Backpropagation (intuition)', slug: backpropagation, level: L1 }
         - { id: '1.1.9', title: 'Training vs inference', level: L1 }
         - { id: '1.1.10', title: 'Overfitting and generalization', level: L1 }
-        - { id: '1.1.11', title: 'Model evaluation metrics', level: L2 }
+        - { id: '1.1.11', title: 'Model evaluation metrics', level: L1 }
         - { id: '1.1.12', title: 'GPUs and why AI needs compute', slug: gpus-and-compute, level: L1 }
         - { id: '1.1.13', title: 'Scaling laws (intuition)', slug: scaling-laws, level: L1 }
     - id: '1.2'
-      title: NLP foundations and the road to LLMs
-      summary: How text becomes numbers, and how classical NLP evolved into attention.
+      title: From words to meaning
+      summary: How text becomes numbers a model can use, and how models learned to read context.
       topics:
         - { id: '1.2.1', title: 'Text representation: one-hot, bag-of-words, TF-IDF', slug: text-representation, level: L1 }
-        - { id: '1.2.2', title: 'Vocabulary and out-of-vocabulary words', slug: vocabulary-and-oov, level: L1 }
-        - { id: '1.2.3', title: 'Tokenization', level: L2 }
-        - { id: '1.2.4', title: 'BPE, WordPiece and SentencePiece', slug: bpe-wordpiece-sentencepiece, level: L2 }
-        - { id: '1.2.5', title: 'Token quirks: numbers, code, languages', slug: token-quirks, level: L2 }
-        - { id: '1.2.6', title: 'Word embeddings (word2vec intuition)', slug: word-embeddings, level: L1 }
-        - { id: '1.2.7', title: 'Context and why static embeddings fail', slug: context-and-static-embeddings, level: L1 }
-        - { id: '1.2.8', title: 'Sequence modeling: RNNs and LSTMs', slug: sequence-modeling-rnns, level: L1 }
-        - { id: '1.2.9', title: 'Attention as the fix for the bottleneck', slug: attention-intuition, level: L1 }
-        - { id: '1.2.10', title: 'From n-grams to reasoning models: a timeline', slug: nlp-timeline, level: L1 }
+        - { id: '1.2.2', title: 'Tokens and tokenization', slug: tokenization, level: L1 }
+        - { id: '1.2.3', title: 'Embeddings: meaning as numbers', slug: embeddings-intuition, level: L1 }
+        - { id: '1.2.4', title: 'Attention: how models use context', slug: attention-intuition, level: L1 }
     - id: '1.3'
       title: Transformers
-      summary: Self-attention, the transformer block, and why this architecture changed AI.
+      summary: The architecture behind modern AI models, explained without the math.
       topics:
-        - { id: '1.3.1', title: 'Why transformers were created', level: L1 }
-        - { id: '1.3.2', title: 'Self-attention: Query, Key, Value', slug: self-attention-qkv, level: L4 }
-        - { id: '1.3.3', title: 'Scaled dot-product attention by hand', slug: scaled-dot-product-attention, level: L4 }
-        - { id: '1.3.4', title: 'Multi-head attention', level: L1 }
-        - { id: '1.3.5', title: 'Positional encoding and RoPE', slug: positional-encoding, level: L1 }
-        - { id: '1.3.6', title: 'Feed-forward networks', level: L1 }
-        - { id: '1.3.7', title: 'Residual connections and layer normalization', slug: residuals-and-layernorm, level: L1 }
-        - { id: '1.3.8', title: 'The transformer block', level: L1 }
-        - { id: '1.3.9', title: 'Encoder, decoder, encoder-decoder', slug: encoder-decoder-architectures, level: L1 }
-        - { id: '1.3.10', title: 'Causal masking', level: L2 }
-        - { id: '1.3.11', title: 'Context windows, O(n²) attention and the KV cache', slug: context-window-and-kv-cache, level: L4 }
-        - { id: '1.3.12', title: 'Why transformers changed AI', level: L1 }
+        - { id: '1.3.1', title: 'What a transformer is', slug: what-is-a-transformer, level: L1 }
+        - { id: '1.3.2', title: 'Self-attention in plain words', slug: self-attention, level: L1 }
+        - { id: '1.3.3', title: 'Context windows and the KV cache', slug: context-window-and-kv-cache, level: L1 }
     - id: '1.4'
       title: How LLMs work
-      summary: 'Pretraining, the generation loop, sampling, alignment, reasoning models and model selection.'
+      summary: How large language models are trained, how they write answers, and how to pick one.
       topics:
         - { id: '1.4.1', title: 'What is an LLM?', slug: what-is-an-llm, level: L1 }
-        - { id: '1.4.2', title: 'Pretraining, base and foundation models', slug: pretraining-and-base-models, level: L1 }
-        - { id: '1.4.3', title: 'The generation pipeline: prompt to next token', slug: generation-pipeline, level: L4 }
-        - { id: '1.4.4', title: 'Sampling: temperature, top-k, top-p', slug: sampling, level: L2 }
-        - { id: '1.4.5', title: 'Prefill vs decode', level: L4 }
-        - { id: '1.4.6', title: 'Instruction tuning and SFT', slug: instruction-tuning, level: L1 }
-        - { id: '1.4.7', title: 'RLHF, DPO and alignment', slug: rlhf-dpo-alignment, level: L1 }
-        - { id: '1.4.8', title: 'Why LLMs hallucinate', level: L3 }
-        - { id: '1.4.9', title: 'Reasoning models and test-time compute', slug: reasoning-models, level: L3, volatile: true }
-        - { id: '1.4.10', title: 'Model size, MoE, quantization and distillation', slug: model-size-overview, level: L1 }
-        - { id: '1.4.11', title: 'Closed vs open-weight models', slug: closed-vs-open-weight, level: L1, volatile: true }
-        - { id: '1.4.12', title: 'Model selection trade-offs', level: L3 }
-        - { id: '1.4.13', title: 'Knowledge cutoffs and external knowledge', slug: knowledge-cutoffs, level: L1 }
+        - { id: '1.4.2', title: 'Next-token prediction and temperature', slug: next-token-and-temperature, level: L1 }
+        - { id: '1.4.3', title: 'Instruction tuning and RLHF', slug: instruction-tuning-and-rlhf, level: L1 }
+        - { id: '1.4.4', title: 'Hallucinations and knowledge cutoffs', slug: hallucinations, level: L1 }
+        - { id: '1.4.5', title: 'Reasoning models', level: L1, volatile: true }
+        - { id: '1.4.6', title: 'Choosing a model: size, cost, open vs closed', slug: choosing-a-model, level: L1, volatile: true }
 
 - id: s2
   number: 2
   title: Building LLM Applications
-  summary: Prompts, APIs, structured outputs, streaming, chat UIs, and evaluation from day one.
+  summary: The ideas you need to put an LLM inside a real product.
   modules:
     - id: '2.1'
-      title: Prompt engineering as specification writing
-      summary: Why prompts work, how to structure them, and how to treat them like code.
+      title: Prompting
+      summary: How to ask a model for what you want, and the main risk of doing it.
       topics:
-        - { id: '2.1.1', title: 'Why prompts work', level: L3 }
-        - { id: '2.1.2', title: 'System, user and assistant messages', slug: message-roles, level: L2 }
-        - { id: '2.1.3', title: 'Zero-shot and few-shot prompting', slug: zero-shot-few-shot, level: L2 }
-        - { id: '2.1.4', title: 'Role prompting', level: L1 }
-        - { id: '2.1.5', title: 'Delimiters and prompt structure', slug: prompt-structure, level: L2 }
-        - { id: '2.1.6', title: 'Prompt templates as typed functions', slug: prompt-templates, level: L2 }
-        - { id: '2.1.7', title: 'Prompted reasoning vs reasoning models', slug: prompted-reasoning, level: L3, volatile: true }
-        - { id: '2.1.8', title: 'Prompt decomposition and chaining', slug: prompt-chaining, level: L2 }
-        - { id: '2.1.9', title: 'Query rewriting', level: L2 }
-        - { id: '2.1.10', title: 'Prompt injection 101', slug: prompt-injection-101, level: L1 }
-        - { id: '2.1.11', title: 'Prompts as code: versioning and review', slug: prompts-as-code, level: L3 }
+        - { id: '2.1.1', title: 'Prompts and message roles', slug: prompts-and-roles, level: L1 }
+        - { id: '2.1.2', title: 'Zero-shot and few-shot prompting', slug: zero-shot-few-shot, level: L1 }
+        - { id: '2.1.3', title: 'Writing clear prompts', level: L2 }
+        - { id: '2.1.4', title: 'Prompt injection 101', slug: prompt-injection-101, level: L1 }
     - id: '2.2'
-      title: LLM APIs from first principles
-      summary: Requests, tokens, limits, retries, errors, providers and caching.
+      title: LLM APIs
+      summary: What happens when your code calls a model, and what it costs.
       topics:
-        - { id: '2.2.1', title: 'Anatomy of an LLM API request', slug: llm-api-anatomy, level: L2 }
-        - { id: '2.2.2', title: 'Tokens and billing', level: L2 }
-        - { id: '2.2.3', title: 'Context limits and truncation', slug: context-limits, level: L2 }
-        - { id: '2.2.4', title: 'API keys and why they never touch the browser', slug: api-key-protection, level: L2 }
-        - { id: '2.2.5', title: 'Rate limits, retries and backoff', slug: rate-limits-and-retries, level: L3 }
-        - { id: '2.2.6', title: 'Timeouts, cancellation and error handling', slug: timeouts-and-errors, level: L3 }
-        - { id: '2.2.7', title: 'The provider landscape', slug: provider-landscape, level: L2, volatile: true }
-        - { id: '2.2.8', title: 'Building a provider abstraction', slug: provider-abstraction, level: L3 }
-        - { id: '2.2.9', title: 'Multimodal inputs', level: L2 }
-        - { id: '2.2.10', title: 'Prompt caching vs response caching', slug: prompt-and-response-caching, level: L3, volatile: true }
-        - { id: '2.2.11', title: 'Batch APIs', level: L2 }
+        - { id: '2.2.1', title: 'Anatomy of an LLM API call', slug: llm-api-anatomy, level: L1, volatile: true }
+        - { id: '2.2.2', title: 'Tokens, cost and context limits', slug: tokens-cost-and-limits, level: L1 }
+        - { id: '2.2.3', title: 'Rate limits, errors and retries', slug: rate-limits-and-retries, level: L2 }
     - id: '2.3'
       title: Structured outputs
-      summary: Turning model output into typed, validated data your software can trust.
+      summary: Getting data your code can trust instead of free text.
       topics:
-        - { id: '2.3.1', title: 'Why free text breaks software', level: L1 }
-        - { id: '2.3.2', title: 'JSON mode vs constrained decoding', slug: constrained-decoding, level: L4 }
-        - { id: '2.3.3', title: 'Schemas with Zod and repair loops', slug: zod-schemas-and-repair, level: L2 }
-        - { id: '2.3.4', title: 'Extraction, classification and routing', slug: extraction-classification-routing, level: L2 }
-        - { id: '2.3.5', title: 'Schema design for LLMs', level: L3 }
-        - { id: '2.3.6', title: 'Structured output failure modes', slug: structured-output-failures, level: L3 }
+        - { id: '2.3.1', title: 'Structured outputs and JSON schemas', slug: structured-outputs, level: L1 }
     - id: '2.4'
-      title: Streaming
-      summary: Token streaming from provider to backend to React, including cancellation.
+      title: Streaming and chat
+      summary: Why answers appear word by word, and how chat apps remember a conversation.
       frontend: true
       topics:
-        - { id: '2.4.1', title: 'Why stream: perceived latency and TTFT', slug: why-stream, level: L1 }
-        - { id: '2.4.2', title: 'How providers stream', level: L4 }
-        - { id: '2.4.3', title: 'SSE vs WebSockets vs fetch streams', slug: sse-vs-websockets, level: L3 }
-        - { id: '2.4.4', title: 'Proxying streams through your backend', slug: proxying-streams, level: L3 }
-        - { id: '2.4.5', title: 'Parsing streams and partial JSON in the browser', slug: parsing-streams, level: L2 }
-        - { id: '2.4.6', title: 'Cancellation, disconnects and resumable streams', slug: stream-cancellation, level: L3 }
-        - { id: '2.4.7', title: 'Rendering tokens efficiently in React', slug: rendering-tokens-in-react, level: L3 }
+        - { id: '2.4.1', title: 'Streaming responses', slug: streaming, level: L1 }
+        - { id: '2.4.2', title: 'Chat apps and conversation history', slug: conversation-history, level: L1 }
     - id: '2.5'
-      title: Chat applications
-      summary: Conversation state, persistence, context management and chat UX.
-      frontend: true
-      topics:
-        - { id: '2.5.1', title: 'Conversation state model', level: L2 }
-        - { id: '2.5.2', title: 'Server vs client history and persistence', slug: conversation-persistence, level: L3 }
-        - { id: '2.5.3', title: 'Context window management', level: L3 }
-        - { id: '2.5.4', title: 'Optimistic UI, retry, regenerate and branching', slug: chat-optimistic-ui, level: L2 }
-        - { id: '2.5.5', title: 'Loading, error states and safe markdown rendering', slug: safe-markdown-rendering, level: L2 }
-        - { id: '2.5.6', title: 'Accessibility for streaming content', slug: streaming-accessibility, level: L2 }
-    - id: '2.6'
       title: Evaluation basics
-      summary: Measuring probabilistic output from the very first prompt.
+      summary: How to tell whether an AI feature is actually good.
       topics:
-        - { id: '2.6.1', title: "Why unit tests aren't enough", slug: why-unit-tests-arent-enough, level: L1 }
-        - { id: '2.6.2', title: 'Error analysis first', level: L2 }
-        - { id: '2.6.3', title: 'Your first golden dataset', slug: golden-datasets, level: L2 }
-        - { id: '2.6.4', title: 'Code-based assertions', level: L2 }
-        - { id: '2.6.5', title: 'Evals in CI', level: L2 }
+        - { id: '2.5.1', title: 'Evals: testing AI output', slug: evals-basics, level: L1 }
+        - { id: '2.5.2', title: 'Golden datasets', slug: golden-datasets, level: L1 }
 
 - id: s3
   number: 3
   title: Embeddings & Retrieval
-  summary: Vectors, similarity, search algorithms and vector databases — the foundation for RAG.
+  summary: How AI apps find the right information, by keyword and by meaning.
   modules:
     - id: '3.1'
-      title: Embeddings in depth
-      summary: Meaning as coordinates, similarity math, and choosing embedding models.
+      title: Embeddings
+      summary: Turning text into vectors and measuring how similar two things are.
       topics:
-        - { id: '3.1.1', title: 'What embeddings are and why they exist', slug: what-are-embeddings, level: L2 }
-        - { id: '3.1.2', title: 'Vector dimensions', level: L1 }
-        - { id: '3.1.3', title: 'Dot product, cosine and Euclidean distance', slug: similarity-metrics, level: L4 }
-        - { id: '3.1.4', title: 'Normalization', level: L4 }
-        - { id: '3.1.5', title: 'How embedding models are trained', slug: training-embedding-models, level: L1 }
-        - { id: '3.1.6', title: 'Query vs document embeddings', slug: query-vs-document-embeddings, level: L3 }
-        - { id: '3.1.7', title: 'Multilingual and code embeddings', level: L2 }
-        - { id: '3.1.8', title: 'Matryoshka embeddings and dimension truncation', slug: matryoshka-embeddings, level: L3 }
-        - { id: '3.1.9', title: 'Embedding limitations', level: L3 }
-        - { id: '3.1.10', title: 'Choosing an embedding model', slug: choosing-embedding-models, level: L3, volatile: true }
-        - { id: '3.1.11', title: 'Visualizing embeddings', level: L1 }
+        - { id: '3.1.1', title: 'Embedding models', slug: embedding-models, level: L1, volatile: true }
+        - { id: '3.1.2', title: 'Similarity: cosine and distance', slug: similarity, level: L1 }
     - id: '3.2'
-      title: Search fundamentals
-      summary: Keyword search, dense retrieval, ANN indexes, hybrid search and retrieval metrics.
+      title: Search
+      summary: Keyword search, semantic search, and how to tell if search results are good.
       topics:
-        - { id: '3.2.1', title: 'Keyword search: inverted indexes and BM25', slug: keyword-search-bm25, level: L2 }
-        - { id: '3.2.2', title: 'Dense vs sparse retrieval', level: L3 }
-        - { id: '3.2.3', title: 'Exact kNN and why it does not scale', slug: exact-knn, level: L2 }
-        - { id: '3.2.4', title: 'Approximate nearest neighbor search', slug: ann-search, level: L4 }
-        - { id: '3.2.5', title: 'HNSW, IVF and product quantization', slug: hnsw-ivf-pq, level: L4 }
-        - { id: '3.2.6', title: 'Hybrid search and reciprocal rank fusion', slug: hybrid-search, level: L3 }
-        - { id: '3.2.7', title: 'Metadata filtering', level: L3 }
-        - { id: '3.2.8', title: 'Retrieval metrics: precision, recall, MRR, nDCG', slug: retrieval-metrics, level: L3 }
+        - { id: '3.2.1', title: 'Keyword search and BM25', slug: keyword-search-bm25, level: L1 }
+        - { id: '3.2.2', title: 'Semantic and hybrid search', slug: semantic-and-hybrid-search, level: L1 }
+        - { id: '3.2.3', title: 'Search quality: precision, recall, ranking', slug: retrieval-metrics, level: L1 }
     - id: '3.3'
       title: Vector databases
-      summary: What vector databases add, pgvector as a default, and when to go specialized.
+      summary: Where embeddings are stored and searched quickly.
       topics:
-        - { id: '3.3.1', title: 'What a vector database adds', slug: what-is-a-vector-database, level: L1 }
-        - { id: '3.3.2', title: "Why SQL LIKE can't do semantic search", slug: why-sql-isnt-enough, level: L1 }
-        - { id: '3.3.3', title: 'Vector database architecture', level: L4 }
-        - { id: '3.3.4', title: 'Postgres + pgvector', slug: pgvector, level: L2 }
-        - { id: '3.3.5', title: 'Specialized vector databases', level: L1, volatile: true }
-        - { id: '3.3.6', title: 'Choosing a vector store', level: L3 }
-        - { id: '3.3.7', title: 'Scaling vector search', level: L5 }
+        - { id: '3.3.1', title: 'Vector databases and approximate search', slug: vector-databases, level: L1, volatile: true }
 
 - id: s4
   number: 4
   title: RAG & Knowledge Systems
-  summary: Retrieval-augmented generation from first principles to production pipelines.
+  summary: Letting a model answer from your own documents.
   modules:
     - id: '4.1'
-      title: RAG from first principles
-      summary: The problem RAG solves, the naive pipeline, grounding, citations and failure modes.
+      title: RAG basics
+      summary: What retrieval-augmented generation is, and the main choices in building it.
       topics:
-        - { id: '4.1.1', title: 'The problem RAG solves', level: L1 }
-        - { id: '4.1.2', title: 'RAG vs long context vs fine-tuning vs tools', slug: rag-vs-alternatives, level: L3 }
-        - { id: '4.1.3', title: 'Naive RAG end to end', slug: naive-rag, level: L2 }
-        - { id: '4.1.4', title: 'Context construction', level: L3 }
-        - { id: '4.1.5', title: 'Grounding prompts', level: L2 }
-        - { id: '4.1.6', title: 'Citations', level: L2 }
-        - { id: '4.1.7', title: 'RAG failure modes', level: L3 }
-        - { id: '4.1.8', title: 'Debugging RAG', level: L3 }
+        - { id: '4.1.1', title: 'What RAG is', slug: what-is-rag, level: L1 }
+        - { id: '4.1.2', title: 'RAG vs long context vs fine-tuning', slug: rag-vs-alternatives, level: L1 }
+        - { id: '4.1.3', title: 'Chunking documents', slug: chunking, level: L1 }
+        - { id: '4.1.4', title: 'Grounding and citations', slug: grounding-and-citations, level: L1 }
     - id: '4.2'
-      title: RAG data engineering
-      summary: Loading, parsing, chunking, metadata, indexing pipelines, ACLs and multi-tenancy.
+      title: Better retrieval
+      summary: The common upgrades to basic RAG.
       topics:
-        - { id: '4.2.1', title: 'Document loaders', level: L2 }
-        - { id: '4.2.2', title: 'Parsing PDFs, tables and scans', slug: parsing-hard-documents, level: L3 }
-        - { id: '4.2.3', title: 'Cleaning and deduplication', level: L2 }
-        - { id: '4.2.4', title: 'Chunking strategies', level: L3 }
-        - { id: '4.2.5', title: 'Tuning chunk size and overlap', slug: chunk-size-and-overlap, level: L3 }
-        - { id: '4.2.6', title: 'Metadata strategy', level: L3 }
-        - { id: '4.2.7', title: 'Contextual chunk enrichment', level: L3 }
-        - { id: '4.2.8', title: 'Indexing pipelines', level: L3 }
-        - { id: '4.2.9', title: 'Incremental updates, deletes and versioning', slug: incremental-indexing, level: L5 }
-        - { id: '4.2.10', title: 'Freshness', level: L5 }
-        - { id: '4.2.11', title: 'Access control at retrieval time', slug: rag-access-control, level: L5 }
-        - { id: '4.2.12', title: 'Multi-tenant RAG', level: L5 }
+        - { id: '4.2.1', title: 'Reranking', level: L1 }
+        - { id: '4.2.2', title: 'Query rewriting and HyDE', slug: query-rewriting, level: L1 }
     - id: '4.3'
-      title: Advanced retrieval
-      summary: Reranking, query transformation, parent-child retrieval, routing and GraphRAG.
-      topics:
-        - { id: '4.3.1', title: 'Reranking with cross-encoders', slug: reranking, level: L3 }
-        - { id: '4.3.2', title: 'Query rewriting, expansion, multi-query and HyDE', slug: query-transformation, level: L3 }
-        - { id: '4.3.3', title: 'Hybrid retrieval in practice', level: L3 }
-        - { id: '4.3.4', title: 'Parent-child retrieval', level: L3 }
-        - { id: '4.3.5', title: 'Context compression', level: L3 }
-        - { id: '4.3.6', title: 'Self-querying metadata filters', slug: self-querying, level: L3 }
-        - { id: '4.3.7', title: 'Routing across indexes', level: L3 }
-        - { id: '4.3.8', title: 'Late interaction (ColBERT)', slug: late-interaction-colbert, level: L1 }
-        - { id: '4.3.9', title: 'GraphRAG and knowledge graphs', slug: graphrag, level: L1, maturity: Emerging }
-        - { id: '4.3.10', title: 'Agentic RAG preview', level: L1 }
-    - id: '4.4'
       title: RAG evaluation
-      summary: Evaluating retrieval and generation separately, with real and synthetic test sets.
+      summary: Checking whether retrieval and answers are both right.
       topics:
-        - { id: '4.4.1', title: 'Evaluate retrieval separately from generation', slug: separate-retrieval-eval, level: L3 }
-        - { id: '4.4.2', title: 'Retrieval metrics on labeled data', slug: labeled-retrieval-eval, level: L3 }
-        - { id: '4.4.3', title: 'Faithfulness, relevance and correctness', slug: rag-generation-metrics, level: L3 }
-        - { id: '4.4.4', title: 'Synthetic test sets', level: L3 }
-        - { id: '4.4.5', title: 'RAG eval tooling', level: L2, volatile: true }
+        - { id: '4.3.1', title: 'Evaluating RAG', slug: evaluating-rag, level: L1 }
 
 - id: s5
   number: 5
   title: Tools, Agents, MCP & Memory
-  summary: From tool calling to workflows, agents, the Model Context Protocol and memory.
+  summary: Letting models take actions, and the systems built on top of that.
   modules:
     - id: '5.1'
-      title: Tool and function calling
-      summary: The model asks, your code does — schemas, loops, errors, permissions and security.
+      title: Tool calling
+      summary: How a model asks your code to do things.
       topics:
-        - { id: '5.1.1', title: 'What tool calling is', level: L2 }
-        - { id: '5.1.2', title: 'Tool schemas', level: L3 }
-        - { id: '5.1.3', title: 'The tool-calling loop', level: L2 }
-        - { id: '5.1.4', title: 'Tool choice modes', level: L2 }
-        - { id: '5.1.5', title: 'Parallel vs sequential tool calls', slug: parallel-tool-calls, level: L2 }
-        - { id: '5.1.6', title: 'Tool errors as information', slug: tool-errors, level: L3 }
-        - { id: '5.1.7', title: 'Designing good tools', level: L3 }
-        - { id: '5.1.8', title: 'Permissions and human approval', slug: tool-permissions-and-approval, level: L3 }
-        - { id: '5.1.9', title: 'Provider-hosted tools', level: L2, volatile: true }
-        - { id: '5.1.10', title: 'Tool security', level: L3 }
+        - { id: '5.1.1', title: 'Tool calling', slug: tool-calling, level: L1 }
+        - { id: '5.1.2', title: 'Tool permissions and human approval', slug: tool-permissions, level: L1 }
     - id: '5.2'
-      title: From workflows to agents
-      summary: Workflow patterns, agent architecture, state, human-in-the-loop and when not to use agents.
+      title: Workflows and agents
+      summary: What an agent is, how it works, and when a simple workflow is better.
       topics:
-        - { id: '5.2.1', title: 'From LLM to multi-agent: the evolution', slug: llm-to-agent-evolution, level: L1 }
-        - { id: '5.2.2', title: 'Workflow patterns', level: L3 }
-        - { id: '5.2.3', title: 'Deterministic workflows vs agents', slug: workflows-vs-agents, level: L3 }
-        - { id: '5.2.4', title: 'Agent architecture', level: L2 }
-        - { id: '5.2.5', title: 'ReAct', level: L2 }
-        - { id: '5.2.6', title: 'Planning, execution and reflection', slug: planning-and-reflection, level: L3 }
-        - { id: '5.2.7', title: 'State, checkpoints and durable execution', slug: agent-state, level: L3 }
-        - { id: '5.2.8', title: 'Human-in-the-loop', level: L3 }
-        - { id: '5.2.9', title: 'Guardrails and budgets', level: L3 }
-        - { id: '5.2.10', title: 'Agent failure modes', level: L3 }
-        - { id: '5.2.11', title: 'Multi-agent systems', level: L3 }
-        - { id: '5.2.12', title: 'When not to use agents', level: L3 }
+        - { id: '5.2.1', title: 'Workflows vs agents', slug: workflows-vs-agents, level: L1 }
+        - { id: '5.2.2', title: 'How agents work: the agent loop', slug: agent-loop, level: L1 }
+        - { id: '5.2.3', title: 'Multi-agent systems', level: L1 }
+        - { id: '5.2.4', title: 'Guardrails and when not to use agents', slug: agent-guardrails, level: L1 }
     - id: '5.3'
       title: Model Context Protocol (MCP)
-      summary: Why MCP exists, its architecture and primitives, building servers and clients, and security.
+      summary: The standard way to connect AI apps to tools and data.
       topics:
-        - { id: '5.3.1', title: 'Why MCP exists', level: L1 }
-        - { id: '5.3.2', title: 'MCP architecture: hosts, clients, servers', slug: mcp-architecture, level: L2, volatile: true }
-        - { id: '5.3.3', title: 'Tools, resources and prompts', slug: mcp-server-primitives, level: L2 }
-        - { id: '5.3.4', title: 'Sampling, elicitation and roots', slug: mcp-client-features, level: L1, volatile: true }
-        - { id: '5.3.5', title: 'MCP transports', level: L3, volatile: true }
-        - { id: '5.3.6', title: 'Lifecycle and capability discovery', slug: mcp-lifecycle, level: L2 }
-        - { id: '5.3.7', title: 'MCP authorization', level: L3, volatile: true }
-        - { id: '5.3.8', title: 'MCP vs APIs vs function calling vs plugins', slug: mcp-vs-alternatives, level: L3 }
-        - { id: '5.3.9', title: 'Building an MCP server in TypeScript', slug: building-an-mcp-server, level: L2, volatile: true }
-        - { id: '5.3.10', title: 'Building an MCP client', level: L2, volatile: true }
-        - { id: '5.3.11', title: 'MCP Apps and extensions', slug: mcp-apps, level: L1, maturity: Emerging, volatile: true }
-        - { id: '5.3.12', title: 'MCP security risks', level: L3 }
-        - { id: '5.3.13', title: 'MCP in production', level: L3 }
+        - { id: '5.3.1', title: 'What MCP is and why it exists', slug: what-is-mcp, level: L1, volatile: true }
+        - { id: '5.3.2', title: 'MCP servers: tools, resources and prompts', slug: mcp-servers, level: L1, volatile: true }
     - id: '5.4'
-      title: Memory
-      summary: Short- and long-term memory, compression, conflicts and privacy.
+      title: Memory and agentic RAG
+      summary: How AI apps remember things, and agents that search on their own.
       topics:
-        - { id: '5.4.1', title: 'Memory is context management', level: L1 }
-        - { id: '5.4.2', title: 'Short-term vs long-term memory', slug: short-vs-long-term-memory, level: L2 }
-        - { id: '5.4.3', title: 'Semantic, episodic and procedural memory', slug: memory-types, level: L3 }
-        - { id: '5.4.4', title: 'User memory', level: L3 }
-        - { id: '5.4.5', title: 'Memory compression and compaction', slug: memory-compression, level: L3 }
-        - { id: '5.4.6', title: 'Memory conflicts and staleness', slug: memory-conflicts, level: L3 }
-        - { id: '5.4.7', title: 'Memory privacy and poisoning', slug: memory-privacy, level: L3 }
-    - id: '5.5'
-      title: Agentic RAG
-      summary: Retrieval as a tool, iterative search and self-correcting retrieval.
-      topics:
-        - { id: '5.5.1', title: 'Retrieval as a tool', level: L3 }
-        - { id: '5.5.2', title: 'Self-correcting retrieval', level: L3 }
-        - { id: '5.5.3', title: 'Agentic vs pipeline RAG trade-offs', slug: agentic-vs-pipeline-rag, level: L3 }
+        - { id: '5.4.1', title: 'Memory in AI apps', slug: memory, level: L1 }
+        - { id: '5.4.2', title: 'Agentic RAG', level: L1 }
 
 - id: s6
   number: 6
   title: 'Quality: Evaluation, Security, Observability'
-  summary: Making probabilistic systems measurable, defensible and debuggable.
+  summary: Making AI features measurable, safe and debuggable.
   modules:
     - id: '6.1'
       title: Evaluation in depth
-      summary: The eval lifecycle, LLM-as-a-judge, regression and agent evaluation, online eval.
+      summary: Using models to grade models, and reading benchmarks with care.
       topics:
-        - { id: '6.1.1', title: 'The eval lifecycle', level: L3 }
-        - { id: '6.1.2', title: 'Human evaluation', level: L3 }
-        - { id: '6.1.3', title: 'LLM-as-a-judge', level: L4 }
-        - { id: '6.1.4', title: 'Pairwise, pointwise and binary evals', slug: eval-scoring-formats, level: L3 }
-        - { id: '6.1.5', title: 'Regression testing prompts and models', slug: regression-testing, level: L5 }
-        - { id: '6.1.6', title: 'Agent evaluation', level: L4 }
-        - { id: '6.1.7', title: 'Online evaluation and feedback', slug: online-evaluation, level: L5 }
-        - { id: '6.1.8', title: 'Benchmark literacy', level: L1 }
+        - { id: '6.1.1', title: 'LLM-as-a-judge', level: L1 }
+        - { id: '6.1.2', title: 'Benchmarks and leaderboards', slug: benchmarks, level: L1, volatile: true }
     - id: '6.2'
       title: AI security
-      summary: Prompt injection, data leakage, excessive agency, poisoning — mapped to web security you know.
+      summary: The new ways AI features get attacked, and the basic defenses.
       topics:
-        - { id: '6.2.1', title: 'The AI threat model', level: L3 }
-        - { id: '6.2.2', title: 'Direct prompt injection and jailbreaks', slug: direct-prompt-injection, level: L3 }
-        - { id: '6.2.3', title: 'Indirect prompt injection', level: L4 }
-        - { id: '6.2.4', title: 'Mapping AI risks to web security', slug: ai-vs-web-security, level: L3 }
-        - { id: '6.2.5', title: 'Data and system prompt leakage', slug: data-leakage, level: L3 }
-        - { id: '6.2.6', title: 'Excessive agency and tool abuse', slug: excessive-agency, level: L3 }
-        - { id: '6.2.7', title: 'RAG and data poisoning', slug: rag-poisoning, level: L3 }
-        - { id: '6.2.8', title: 'Model and MCP supply chain', slug: ai-supply-chain, level: L3 }
-        - { id: '6.2.9', title: 'Defensive architectures and guardrails', slug: ai-defenses, level: L4 }
-        - { id: '6.2.10', title: 'Tenant isolation and agent identity', slug: tenant-isolation, level: L5 }
-        - { id: '6.2.11', title: 'Red teaming', level: L3 }
-        - { id: '6.2.12', title: 'OWASP, NIST and regulation', slug: ai-security-frameworks, level: L1, volatile: true }
+        - { id: '6.2.1', title: 'Prompt injection and jailbreaks', slug: prompt-injection-and-jailbreaks, level: L1 }
+        - { id: '6.2.2', title: 'Data leakage and excessive agency', slug: data-leakage-and-agency, level: L1 }
+        - { id: '6.2.3', title: 'Guardrails and red teaming', slug: guardrails-and-red-teaming, level: L1, volatile: true }
     - id: '6.3'
       title: Observability
-      summary: Tracing LLM calls, retrieval, tools and agents — plus cost and quality signals.
+      summary: Seeing what your AI feature actually did.
       topics:
-        - { id: '6.3.1', title: "Why APM isn't enough", slug: why-apm-isnt-enough, level: L1 }
-        - { id: '6.3.2', title: 'Traces and spans for AI systems', slug: ai-tracing, level: L3 }
-        - { id: '6.3.3', title: 'What to log and what to redact', slug: ai-logging, level: L3 }
-        - { id: '6.3.4', title: 'OpenTelemetry GenAI conventions', slug: otel-genai, level: L2, volatile: true }
-        - { id: '6.3.5', title: 'AI observability tools', level: L2, volatile: true }
-        - { id: '6.3.6', title: 'Frontend quality signals', level: L3 }
-        - { id: '6.3.7', title: 'Failure analysis loops', level: L5 }
+        - { id: '6.3.1', title: 'Tracing AI apps', slug: ai-tracing, level: L1, volatile: true }
 
 - id: s7
   number: 7
   title: Production AI Architecture
-  summary: Architecture, cost, performance and shipping AI features reliably.
+  summary: Running AI features reliably and affordably.
   modules:
     - id: '7.1'
-      title: AI application architecture
-      summary: Deterministic cores, orchestrators, BFFs, state, jobs, resilience and gateways.
+      title: Architecture
+      summary: Where the model sits in your system, and how to survive when it fails.
       topics:
-        - { id: '7.1.1', title: 'Traditional vs AI architecture', slug: traditional-vs-ai-architecture, level: L3 }
-        - { id: '7.1.2', title: 'Drawing AI boundaries', level: L3 }
-        - { id: '7.1.3', title: 'The orchestrator layer', level: L3 }
-        - { id: '7.1.4', title: 'BFF and streaming architecture', slug: bff-streaming-architecture, level: L3 }
-        - { id: '7.1.5', title: 'Conversations, runs and checkpoints', slug: ai-state-design, level: L3 }
-        - { id: '7.1.6', title: 'Auth, multi-tenancy and quotas', slug: ai-auth-and-quotas, level: L5 }
-        - { id: '7.1.7', title: 'Background jobs and long-running agents', slug: background-jobs, level: L3 }
-        - { id: '7.1.8', title: 'Durable execution', level: L3 }
-        - { id: '7.1.9', title: 'Fallbacks and resilience', slug: ai-resilience, level: L5 }
-        - { id: '7.1.10', title: 'AI gateways', level: L3, volatile: true }
+        - { id: '7.1.1', title: 'AI application architecture', slug: ai-architecture, level: L1 }
+        - { id: '7.1.2', title: 'AI gateways and fallbacks', slug: ai-gateways, level: L1, volatile: true }
     - id: '7.2'
-      title: Cost and performance
-      summary: Token economics, caching, routing, batching and latency anatomy.
+      title: Cost and speed
+      summary: What makes AI features slow or expensive, and the usual fixes.
       topics:
-        - { id: '7.2.1', title: 'Token economics', level: L3 }
-        - { id: '7.2.2', title: 'Context size as a cost lever', slug: context-size-cost, level: L3 }
-        - { id: '7.2.3', title: 'Designing for prompt caching', slug: prompt-caching-design, level: L3 }
-        - { id: '7.2.4', title: 'Semantic caching', level: L3 }
-        - { id: '7.2.5', title: 'Model routing and cascades', slug: model-routing, level: L3 }
-        - { id: '7.2.6', title: 'Batch processing', level: L2 }
-        - { id: '7.2.7', title: 'Latency anatomy', level: L4 }
-        - { id: '7.2.8', title: 'Throughput vs latency in serving', slug: throughput-vs-latency, level: L4 }
-        - { id: '7.2.9', title: 'Budgets, alerts and cost abuse', slug: cost-controls, level: L5 }
+        - { id: '7.2.1', title: 'Latency and cost basics', slug: latency-and-cost, level: L1 }
+        - { id: '7.2.2', title: 'Caching and model routing', slug: caching-and-routing, level: L1, volatile: true }
     - id: '7.3'
-      title: Shipping AI features
-      summary: Config management, model migrations, data retention and incident response.
+      title: Shipping
+      summary: Changing prompts and models safely once users depend on them.
       topics:
-        - { id: '7.3.1', title: 'Prompt and model config management', slug: ai-config-management, level: L5 }
-        - { id: '7.3.2', title: 'Model deprecations and migrations', slug: model-migrations, level: L5 }
-        - { id: '7.3.3', title: 'Data retention and residency', slug: data-retention, level: L3 }
-        - { id: '7.3.4', title: 'Launch checklists and incident response', slug: ai-launch-and-incidents, level: L5 }
+        - { id: '7.3.1', title: 'Shipping and model migrations', slug: model-migrations, level: L1 }
 
 - id: s8
   number: 8
   title: Models Under the Hood
-  summary: Open-weight models, local inference, fine-tuning, multimodal AI and architecture internals.
+  summary: Open models, running them yourself, fine-tuning and multimodal AI.
   modules:
     - id: '8.1'
-      title: Open-weight models and local inference
-      summary: Hugging Face, Ollama, quantization, vLLM serving, GPU memory math and in-browser inference.
+      title: Open models
+      summary: Finding, running and shrinking open-weight models.
       topics:
-        - { id: '8.1.1', title: 'Hugging Face Hub and model licenses', slug: hugging-face-hub, level: L2 }
-        - { id: '8.1.2', title: 'Running models locally', level: L2, volatile: true }
-        - { id: '8.1.3', title: 'Quantization', level: L3 }
-        - { id: '8.1.4', title: 'Model serving with vLLM', slug: model-serving, level: L4, volatile: true }
-        - { id: '8.1.5', title: 'GPU memory math', level: L4 }
-        - { id: '8.1.6', title: 'In-browser inference with WebGPU', slug: in-browser-inference, level: L2, volatile: true }
-        - { id: '8.1.7', title: 'Small language models', level: L3 }
+        - { id: '8.1.1', title: 'Hugging Face and open-weight models', slug: hugging-face-and-open-models, level: L1, volatile: true }
+        - { id: '8.1.2', title: 'Running models locally', level: L1, volatile: true }
+        - { id: '8.1.3', title: 'Quantization', level: L1 }
+        - { id: '8.1.4', title: 'Mixture of Experts', level: L1 }
     - id: '8.2'
       title: Fine-tuning
-      summary: When fine-tuning beats RAG and prompting, LoRA/QLoRA, datasets and evaluation.
+      summary: Teaching an existing model new behavior, and when not to.
       topics:
-        - { id: '8.2.1', title: 'Prompting vs RAG vs tools vs fine-tuning', slug: when-to-fine-tune, level: L3 }
-        - { id: '8.2.2', title: 'What fine-tuning changes', level: L3 }
-        - { id: '8.2.3', title: 'SFT, instruction and preference tuning', slug: fine-tuning-methods, level: L1 }
-        - { id: '8.2.4', title: 'PEFT, LoRA and QLoRA', slug: lora-and-qlora, level: L4 }
-        - { id: '8.2.5', title: 'Dataset creation and distillation', slug: fine-tuning-datasets, level: L3 }
-        - { id: '8.2.6', title: 'Catastrophic forgetting and evaluation', slug: catastrophic-forgetting, level: L3 }
-        - { id: '8.2.7', title: 'Hosted vs self-run fine-tuning', slug: fine-tuning-tooling, level: L2, volatile: true }
-        - { id: '8.2.8', title: 'Fine-tuning embedders and rerankers', slug: fine-tuning-retrievers, level: L3 }
+        - { id: '8.2.1', title: 'Fine-tuning and when to use it', slug: fine-tuning, level: L1 }
+        - { id: '8.2.2', title: 'LoRA and efficient fine-tuning', slug: lora, level: L1 }
     - id: '8.3'
       title: Multimodal AI
-      summary: Vision, documents, speech, video and multimodal RAG.
+      summary: Models that see, hear and create images.
       topics:
-        - { id: '8.3.1', title: 'How vision-language models see', slug: vision-language-models, level: L1 }
-        - { id: '8.3.2', title: 'Image and document understanding', slug: document-understanding, level: L2 }
-        - { id: '8.3.3', title: 'Speech-to-text, text-to-speech and voice', slug: speech-and-voice, level: L2, volatile: true }
-        - { id: '8.3.4', title: 'Video understanding', level: L1 }
-        - { id: '8.3.5', title: 'Multimodal embeddings and RAG', slug: multimodal-rag, level: L3 }
-        - { id: '8.3.6', title: 'Image generation overview', slug: image-generation, level: L1 }
-    - id: '8.4'
-      title: Architecture internals (optional)
-      summary: Mixture of Experts, long-context techniques, speculative decoding and building a tiny GPT.
-      topics:
-        - { id: '8.4.1', title: 'Mixture of Experts', level: L1 }
-        - { id: '8.4.2', title: 'Long-context techniques', level: L1 }
-        - { id: '8.4.3', title: 'Speculative decoding', level: L1 }
-        - { id: '8.4.4', title: 'Build a tiny GPT', level: L4 }
+        - { id: '8.3.1', title: 'Vision, speech and multimodal models', slug: multimodal-models, level: L1, volatile: true }
+        - { id: '8.3.2', title: 'Image generation and diffusion', slug: image-generation, level: L1 }
 
 - id: s9
   number: 9
   title: AI-Native Engineering & Frontier
-  summary: How AI changes software engineering, and which emerging ideas actually matter.
+  summary: How AI changes software work, and the newest ideas worth knowing.
   modules:
     - id: '9.1'
-      title: AI-native software development
-      summary: Coding agents, context engineering, agent instructions, skills, spec-driven development and verification.
+      title: AI-native development
+      summary: Coding agents and the practices around them.
       topics:
-        - { id: '9.1.1', title: 'The AI coding tool landscape', slug: ai-coding-landscape, level: L1, volatile: true }
-        - { id: '9.1.2', title: 'How coding agents work', level: L3 }
-        - { id: '9.1.3', title: 'Context engineering', level: L4 }
-        - { id: '9.1.4', title: 'AGENTS.md and rules files', slug: agent-instructions, level: L2, volatile: true }
-        - { id: '9.1.5', title: 'Agent Skills', level: L2, volatile: true, maturity: Emerging }
-        - { id: '9.1.6', title: 'MCP in development workflows', slug: mcp-for-developers, level: L2 }
-        - { id: '9.1.7', title: 'Spec-driven development', level: L3 }
-        - { id: '9.1.8', title: 'AI across the development lifecycle', slug: ai-across-sdlc, level: L3 }
-        - { id: '9.1.9', title: 'Verifying AI-generated code', slug: verifying-ai-code, level: L5 }
-        - { id: '9.1.10', title: 'AI tools for frontend engineers', slug: ai-for-frontend-workflows, level: L3 }
-        - { id: '9.1.11', title: 'Parallel and background agents', slug: parallel-agents, level: L3, maturity: Emerging, volatile: true }
-        - { id: '9.1.12', title: 'Team practices for AI-assisted development', slug: ai-team-practices, level: L3 }
+        - { id: '9.1.1', title: 'How coding agents work', slug: coding-agents, level: L1, volatile: true }
+        - { id: '9.1.2', title: 'Context engineering', level: L1 }
+        - { id: '9.1.3', title: 'AGENTS.md, rules files and skills', slug: agent-instructions, level: L1, volatile: true }
+        - { id: '9.1.4', title: 'Spec-driven development', level: L1, maturity: Emerging }
     - id: '9.2'
       title: Emerging systems
-      summary: Separating durable ideas from hype — reasoning, long context, computer use, A2A, generative UI.
+      summary: New ideas that are worth recognizing, even if they're still settling.
       topics:
-        - { id: '9.2.1', title: 'Reasoning models in production', slug: reasoning-in-production, level: L3, volatile: true }
-        - { id: '9.2.2', title: 'Long context vs RAG and context rot', slug: long-context-vs-rag, level: L3, maturity: Emerging }
-        - { id: '9.2.3', title: 'Computer-use and browser agents', slug: computer-use-agents, level: L2, maturity: Emerging, volatile: true }
-        - { id: '9.2.4', title: 'A2A and agent interoperability', slug: a2a-protocol, level: L1, maturity: Emerging, volatile: true }
-        - { id: '9.2.5', title: 'GraphRAG in practice', level: L2, maturity: Emerging }
-        - { id: '9.2.6', title: 'Generative UI', level: L2, maturity: Emerging, volatile: true }
-        - { id: '9.2.7', title: 'Prompt optimization (DSPy-style)', slug: prompt-optimization, level: L1, maturity: Experimental }
-        - { id: '9.2.8', title: 'Synthetic data pipelines', level: L2, maturity: Emerging }
+        - { id: '9.2.1', title: 'Computer-use agents', slug: computer-use-agents, level: L1, maturity: Emerging, volatile: true }
+        - { id: '9.2.2', title: 'A2A and agent interoperability', slug: a2a-protocol, level: L1, maturity: Emerging, volatile: true }
+        - { id: '9.2.3', title: 'GraphRAG', slug: graphrag, level: L1, maturity: Emerging }

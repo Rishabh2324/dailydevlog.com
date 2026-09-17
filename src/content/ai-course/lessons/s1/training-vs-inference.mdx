@@ -1,9 +1,9 @@
 ---
 topic: '1.1.9'
 date: 2026-09-17
-summary: Training is the expensive build step that turns data into frozen weights; inference is the cheap, repeated runtime call that uses them — and keeping the two apart explains model costs, versioning, and why a model doesn't learn from your chat.
-estimatedMinutes: 30
-tags: [Foundations, Training, Inference, Production]
+summary: Training is the expensive, one-time phase where a model learns its parameters from data; inference is using the finished model to answer requests, and during inference the model does not learn anything new.
+estimatedMinutes: 8
+tags: [Foundations, Training, Inference]
 prerequisites: ['1.1.7']
 references:
   - title: 'Production ML systems: Static versus dynamic training'
@@ -11,468 +11,90 @@ references:
     url: https://developers.google.com/machine-learning/crash-course/production-ml-systems/static-vs-dynamic-training
     tier: must
     level: Beginner
-    why: Compares training once and deploying (static) with retraining continuously (dynamic), with the trade-offs this lesson describes.
+    why: A short explanation of training once versus retraining continuously.
   - title: 'Production ML systems: Static versus dynamic inference'
     source: Google Machine Learning Crash Course
     url: https://developers.google.com/machine-learning/crash-course/production-ml-systems/static-vs-dynamic-inference
-    tier: must
+    tier: should
     level: Beginner
-    why: Covers precomputing predictions in batch vs computing them per request, the inference-side design choice.
+    why: Explains running inference ahead of time versus on demand.
   - title: 'Llama 2: Open Foundation and Fine-Tuned Chat Models'
     source: Touvron et al., Meta (2023)
     url: https://arxiv.org/abs/2307.09288
-    tier: should
-    level: Intermediate
-    why: Table 2 reports real pretraining GPU hours for each model size, the numbers used in this lesson's cost comparison.
-  - title: Optimizing LLMs for Speed and Memory
-    source: Hugging Face Transformers docs
-    url: https://huggingface.co/docs/transformers/llm_tutorial_optimization
     tier: optional
     level: Intermediate
-    why: A practical look at what inference actually costs (weight memory, attention, the key-value cache) and how serving systems reduce it.
-  - title: Scaling Laws for Neural Language Models
-    source: Kaplan et al., OpenAI (2020)
-    url: https://arxiv.org/abs/2001.08361
-    tier: optional
-    level: Advanced
-    why: Section 2.1 gives the rules of thumb used here, about 2N compute per token for a forward pass and 6N per training token.
-  - title: 'ZeRO: Memory Optimizations Toward Training Trillion Parameter Models'
-    source: Rajbhandari et al., Microsoft (2019)
-    url: https://arxiv.org/abs/1910.02054
-    tier: optional
-    level: Advanced
-    why: Section 3.1 breaks down why mixed-precision Adam training needs about 16 bytes per parameter, versus 2 bytes to hold fp16 weights.
+    why: Reports the GPU hours used to train the Llama 2 models, a concrete sense of training cost.
 ---
 
-import Callout from '../../../../components/course/Callout.astro';
-import Answer from '../../../../components/course/Answer.astro';
+## Why this matters
 
-## 1. Why does this exist?
+"Why doesn't ChatGPT remember what I told it yesterday?" "Why does training cost millions but an API call costs a
+fraction of a cent?" Both questions have the same answer: training and inference are completely different phases.
 
-Lessons 1.1.6 to 1.1.8 built the training machinery: a loss, gradient descent and backpropagation. All of that work
-produces one thing: **a set of numbers**, the weights. Lesson 1.1.2 already named what happens next: freeze them and
-run the function on new inputs. That's **inference**.
+By the end of this lesson, you'll know the difference and why it matters for cost, speed and behavior.
 
-The split matters because the two phases are completely different workloads. Training is a huge, rare batch job.
-Inference is a small computation repeated for every request, forever. They have different hardware, costs, owners,
-failure modes and release processes. Mixing them up leads to wrong expectations, like "the model will learn from my
-users' corrections", and to wrong budgets.
+## The idea
 
-## 2. What problem does it solve?
+A model has two phases in its life:
 
-Separating training from inference solves **"how do you turn expensive learning into a cheap, predictable service?"**
+- **Training** is where the model learns. It runs gradient descent over huge amounts of data and adjusts its
+  parameters. It happens once (or occasionally), takes a long time and costs a lot.
+- **Inference** is where the model is used. You send an input, it runs a forward pass, and it returns an answer. The
+  parameters stay fixed. It happens millions of times, each call is fast and cheap.
 
-- **Pay once, use many times.** The cost of learning goes into a build step; each request pays only for a forward
-  pass.
-- **Predictability.** Frozen weights mean the same input gives the same scores, so behavior can be tested,
-  versioned and rolled back.
-- **Safety.** Users can't change the model by talking to it. Changes go through a controlled retraining or
-  fine-tuning pipeline.
-- **Separate scaling.** Training needs a tightly connected cluster for weeks. Inference needs many replicas close to
-  users, scaled with traffic.
-
-## 3. Simple explanation
-
-**Training is compiling. Inference is running the binary.**
-
-- **Training:** take data, run forward passes, compute the loss, backpropagate, update weights, and repeat millions of
-  times. The output is a weights file: a build artifact.
-- **Inference:** load that file and run **only the forward pass** on each new input. No loss, no gradients, no
-  updates. The weights are read-only.
-
-A model you call through an API is a deployed build. When you chat with it, the conversation is **input**, not
-training. It can use what you said earlier in the conversation because the app sends that text back in with each
-request (the **context**). Its weights don't change, and your next conversation starts from the same weights.
-
-Changing what the model knows or how it behaves means a **new build**: more training, or **fine-tuning**, which
-continues training an existing model on new data (Season 8).
-
-## 4. Mental model
-
-**A model's lifecycle is a CI/CD pipeline with a very expensive build step.**
-
-```
-data ─▶ [ train: hours to months ] ─▶ weights v1 ─▶ eval ─▶ deploy
-                                                              │
-users ─▶ [ inference: ms-s per request, weights read-only ] ◀─┘
-            │
-            └─▶ logs, feedback ─▶ (reviewed) data for v2 ─▶ ...
+```text
+TRAINING (once, slow, costly)      INFERENCE (every request)
+data → adjust parameters     →     frozen model: input → answer
 ```
 
-The only way information from users gets into the weights is the long loop at the bottom: collect, review, retrain,
-evaluate and redeploy, like shipping a new release. Nothing in the request path writes to the weights.
+## A real-life example
 
-## 5. How it works internally
+Think of a **doctor**. Medical school is training: years of study, very expensive, done before seeing patients.
+Seeing a patient is inference: the doctor uses what they learned to give a diagnosis in minutes. Seeing one patient
+doesn't retrain the doctor's whole education.
 
-**Training, one step:** forward pass over a batch, loss, backward pass, optimizer update. Lesson 1.1.8 showed the
-backward pass costs about twice the forward pass, so a step costs about **3 forward passes** per example. Kaplan et
-al. (2020) turn this into a rule of thumb for transformers with `N` parameters:
+A real case: Meta reported that pretraining its Llama 2 family took about **3.3 million GPU hours** in total
+(Touvron et al., 2023). Using one of those models to answer a question takes a few seconds on one machine.
 
-- about **`6N` floating-point operations (FLOPs) per training token**,
-- about **`2N` FLOPs per token for a forward pass**, which is what inference runs.
+## How it works
 
-**Inference, one request:** a forward pass. For a classifier, that's one pass per input. For an LLM, it's one pass per
-**generated token**: the model predicts a token, appends it, and runs again (lesson 1.4.3). Serving systems cache
-earlier work so each new token doesn't recompute the whole prompt (the KV cache, lesson 1.3.11).
+1. **Training** uses the forward pass, the loss, the backward pass and gradient descent, over and over (lessons
+   1.1.6 to 1.1.8).
+2. **When training ends**, the parameters are saved. This saved file is "the model", sometimes called a checkpoint.
+3. **Inference** loads those parameters and runs only the forward pass. No loss, no backward pass, no updates.
+4. **Because weights are frozen**, the model doesn't learn from your conversations. A chatbot seems to "remember"
+   earlier messages only because the app sends the whole conversation again each time (lesson 2.4.2).
+5. **To change the model's behavior** you either train again, fine-tune it on new examples (lesson 8.2.1), or give
+   it better instructions and information in the input.
 
-**Cost at LLM scale, with real numbers.** Llama 2 7B has about 6.74 billion parameters and was pretrained on 2.0
-trillion tokens. The code example computes:
+## Where you'll see it
 
-| | Compute |
+- **API pricing** is inference pricing: you pay per request, measured in tokens.
+- **"Knowledge cutoff"** is the date the training data ends. The model knows nothing after it (lesson 1.4.4).
+- **Inference speed** (tokens per second, time to first token) matters for user experience.
+- **Hardware:** training needs big GPU clusters; inference can run on a single GPU, and small models even on a
+  laptop or phone.
+
+## Common confusions
+
+- **Chatting with a model doesn't train it.** Providers may use conversations to train future versions, but your
+  current model doesn't change during your chat.
+- **Inference isn't free just because training is over.** For a popular product, total inference cost can grow
+  larger than the training cost.
+- **Fine-tuning is training.** It's a smaller, cheaper round of training on top of an existing model.
+
+## Key terms
+
+| Term | Meaning |
 |---|---|
-| Pretraining (`6 × N × D`) | about 8.09 × 10²² FLOPs |
-| One generated token (`2 × N`) | about 1.35 × 10¹⁰ FLOPs |
-| Ratio | pretraining ≈ generating 6 trillion tokens |
-
-Meta's paper reports **184,320 A100-80GB GPU hours** to pretrain the 7B model. That's the equivalent of about 1,024
-GPUs running for 7.5 days. Serving one response is milliseconds to seconds on a single GPU.
-
-<Callout type="fact" title="Memory is different too">
-  Inference mainly needs the weights: about 13.5 GB for Llama 2 7B at 16-bit (lesson 1.1.5), plus the KV cache.
-  Training with mixed-precision Adam needs about **16 bytes per parameter** before activations, per the ZeRO paper:
-  16-bit weights and gradients, plus 32-bit copies of the weights and Adam's two running averages. For 7B that's
-  about 108 GB, roughly 8× the inference footprint, and backprop's stored activations come on top.
-</Callout>
-
-**Why weights stay frozen at inference.** Updating weights needs a label or target, a loss, a backward pass and an
-optimizer step. A normal request has none of those: nobody knows the "correct" next token for a user's question. Even
-where feedback exists, applying it live would make the model non-reproducible and easy to poison, as this lesson's
-exercise shows. So production systems freeze weights and batch changes into reviewed releases.
-
-**"But the chatbot remembers me."** Product "memory" features store text *outside* the model, such as notes, profiles
-or past chats, and insert relevant parts into the prompt of later requests. That's context and retrieval (Seasons 4
-and 5), not training. Provider policies on whether conversations may be used for *future* training runs vary, but even
-then it's a new build, not the running model changing.
-
-**Where fine-tuning fits.** Fine-tuning is training again, starting from existing weights instead of random ones, on a
-smaller, task-specific dataset. It's cheaper than pretraining but it's still a build step that produces a new weights
-version, which you evaluate before you deploy (Season 8).
-
-<Callout type="opinion">
-  For most popular models, the total compute spent on inference over the model's life can rival or exceed the
-  training run, because inference repeats for every token of every request. That's why so much engineering effort
-  goes into quantization, batching, caching and smaller models (Season 7).
-</Callout>
-
-## 6. Visual explanation
-
-The two phases side by side:
-
-```
-          TRAINING (build time)           INFERENCE (runtime)
- input    labeled dataset                 one request
- passes   forward + loss + backward       forward only
- weights  updated every step              read-only
- output   a weights file                  a prediction / next token
- compute  weeks on a GPU cluster          ms-s per request
- memory   weights + grads + optimizer     weights + KV cache
-          + activations
- cadence  rare, planned releases          continuous, per request
- owner    ML / research team              product / platform team
-```
-
-Where compute goes for the bot net in the code example:
-
-```
- train v1     2,000 steps × 6 examples  = 12,000 forward + backward
- serve        10,000 requests           = 10,000 forward, 0 backward
- fine-tune    500 steps × 9 examples    =  4,500 forward + backward
-```
-
-What a chat request actually does:
-
-```
- turn 1: [system][user msg 1]                 ─▶ weights v1 ─▶ reply 1
- turn 2: [system][msg 1][reply 1][user msg 2] ─▶ weights v1 ─▶ reply 2
-                 └── "memory" is resent input ─┘   (same file)
-```
-
-## 7. Connection to software engineering
-
-| Concept you know | Training / inference equivalent |
-|---|---|
-| Compile / build step | Training: slow, resource-heavy, produces an artifact |
-| Immutable build artifact with a content hash | The weights file for a specific model version |
-| Running the binary in production | Inference: load weights, run the forward pass |
-| Config that can't change without a deploy | Frozen weights: no runtime writes |
-| Request context and session state | The prompt and conversation history sent with each call |
-| Release pipeline with tests before deploy | Retrain or fine-tune, evaluate, then roll out |
-| Pinning a dependency version | Pinning a dated model version instead of an alias that moves |
-| Canary deploy and rollback | Shadow or canary a new model version before switching traffic |
-| Batch jobs vs online services | Batch (precomputed) inference vs online (per-request) inference |
-
-For backend engineers, inference is a stateless service with heavy memory needs and latency that grows with output
-length. For frontend engineers, it's why responses stream token by token and why "remembering" a user is your app's
-job. For platform teams, training and serving are different clusters with different SLOs.
-
-## 8. Code example
-
-The bot net's full lifecycle: train v1, freeze and version it, serve 10,000 requests, then fine-tune a v2 on reviewed
-feedback. Counters show where the forward and backward passes happen. Run it with
-`node --experimental-strip-types lifecycle.ts` (Node 22.6+).
-
-```ts
-import { createHash } from 'node:crypto';
-
-const relu = (z: number) => Math.max(0, z);
-const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
-type Example = { x: number[]; y: number };
-const counts = { forward: 0, backward: 0 };
-
-// The 2-2-1 bot net and its backward pass from lesson 1.1.8.
-function forward(p: readonly number[], [s, k]: number[]) {
-  counts.forward++;
-  const z1 = p[0] * s + p[1] * k + p[2], h1 = relu(z1);
-  const z2 = p[3] * s + p[4] * k + p[5], h2 = relu(z2);
-  return { z1, h1, z2, h2, out: sigmoid(p[6] * h1 + p[7] * h2 + p[8]) };
-}
-function backward(p: readonly number[], x: number[], y: number) {
-  counts.backward++;
-  const f = forward(p, x);
-  const dz = f.out - y;
-  const dz1 = f.z1 > 0 ? dz * p[6] : 0, dz2 = f.z2 > 0 ? dz * p[7] : 0;
-  return [dz1 * x[0], dz1 * x[1], dz1, dz2 * x[0], dz2 * x[1], dz2, dz * f.h1, dz * f.h2, dz];
-}
-
-// ---------- BUILD TIME: training ----------
-function train(start: readonly number[], data: Example[], steps: number, lr: number) {
-  let p = [...start];
-  for (let step = 0; step < steps; step++) {
-    const grads = data.map((e) => backward(p, e.x, e.y));
-    p = p.map((v, i) => v - lr * grads.reduce((a, g) => a + g[i], 0) / data.length);
-  }
-  return p;
-}
-const signups: Example[] = [
-  { x: [2.0, 1], y: 1 }, { x: [4.4, 2], y: 1 }, { x: [3.8, 12], y: 0 }, { x: [14.0, 40], y: 0 },
-  { x: [4.9, 6], y: 1 }, { x: [4.5, 3], y: 0 },
-];
-// Package trained weights as an immutable, versioned artifact (like a build output with a content hash).
-const artifact = (p: number[]) => {
-  const json = JSON.stringify(p.map((v) => +v.toFixed(4)));
-  return { weights: Object.freeze(JSON.parse(json) as number[]), version: createHash('sha256').update(json).digest('hex').slice(0, 8) };
-};
-
-const v1 = artifact(train([-1, 0, 5, 0, -1, 8, 1, 1, -5], signups, 2000, 0.01));
-console.log(`training: ${counts.forward} forward + ${counts.backward} backward passes -> model ${v1.version}`);
-
-// ---------- RUNTIME: inference ----------
-counts.forward = counts.backward = 0;
-const predict = (model: typeof v1, x: number[]) => forward(model.weights, x).out;
-
-const requests = Array.from({ length: 10_000 }, (_, i) => [1 + (i % 30), (i * 7) % 50]);
-for (const x of requests) predict(v1, x);
-console.log(`inference: ${requests.length} requests -> ${counts.forward} forward, ${counts.backward} backward passes`);
-console.log(`weights after serving: ${artifact([...v1.weights]).version} (unchanged: ${artifact([...v1.weights]).version === v1.version})`);
-
-// The same input gives the same output, no matter how many times users "correct" it.
-const slowBot = [4.9, 6];
-console.log(`slow bot P(bot) with ${v1.version}: ${predict(v1, slowBot).toFixed(3)}`);
-
-// ---------- NEXT BUILD: fine-tune on reviewed feedback ----------
-counts.forward = counts.backward = 0;
-const feedback: Example[] = [{ x: [4.9, 6], y: 1 }, { x: [4.8, 5], y: 1 }, { x: [4.7, 7], y: 1 }];
-const v2 = artifact(train(v1.weights, [...signups, ...feedback], 500, 0.01));
-console.log(`fine-tune: ${counts.forward} forward + ${counts.backward} backward passes -> model ${v2.version}`);
-console.log(`slow bot P(bot): ${v1.version}=${predict(v1, slowBot).toFixed(3)}  ${v2.version}=${predict(v2, slowBot).toFixed(3)}`);
-const errs = (m: typeof v1) => signups.filter((e) => (predict(m, e.x) > 0.5 ? 1 : 0) !== e.y).length;
-console.log(`errors on the original 6 signups: ${v1.version}=${errs(v1)}  ${v2.version}=${errs(v2)}`);
-
-// ---------- Napkin math at LLM scale (Llama 2 7B) ----------
-const N = 6.74e9, D = 2.0e12; // parameters, training tokens
-const trainFlops = 6 * N * D, tokenFlops = 2 * N;
-console.log(`Llama 2 7B: training ~${trainFlops.toExponential(2)} FLOPs, one generated token ~${tokenFlops.toExponential(2)} FLOPs`);
-console.log(`training = compute for ~${(trainFlops / tokenFlops).toExponential(1)} generated tokens`);
-```
-
-Output:
-
-```
-training: 12000 forward + 12000 backward passes -> model bafbecb8
-inference: 10000 requests -> 10000 forward, 0 backward passes
-weights after serving: bafbecb8 (unchanged: true)
-slow bot P(bot) with bafbecb8: 0.462
-fine-tune: 4500 forward + 4500 backward passes -> model 4a5368fa
-slow bot P(bot): bafbecb8=0.462  4a5368fa=0.749
-errors on the original 6 signups: bafbecb8=2  4a5368fa=1
-Llama 2 7B: training ~8.09e+22 FLOPs, one generated token ~1.35e+10 FLOPs
-training = compute for ~6.0e+12 generated tokens
-```
-
-What to take from it:
-
-- **Training a 6-example dataset took 24,000 passes.** Each `backward` runs its own forward pass first, so
-  the 12,000 forward calls are the ones inside the backward passes. Inference used exactly one forward pass per
-  request and no backward passes.
-- **Serving doesn't change the model.** After 10,000 requests the weights hash is still `bafbecb8`, and the slow bot
-  still scores 0.462.
-- **Fixing the slow bot took a new build.** Fine-tuning on three reviewed examples produced `4a5368fa`, which scores
-  the slow bot at 0.749 and makes one error instead of two. It's a different version you'd evaluate and deploy, not
-  the running model learning.
-- **At LLM scale the gap is enormous.** Pretraining Llama 2 7B cost as much compute as generating about 6 trillion
-  tokens.
-
-## 9. Real-world example
-
-**A support team uses a hosted LLM to draft replies, and agents keep correcting the same mistake.** The product
-manager asks why the model "isn't learning".
-
-How an engineer who understands the split handles it:
-
-1. **Explain the constraint.** The model is a frozen, versioned deployment. Corrections in the UI are logged, but
-   they aren't training.
-2. **Fix it at runtime first.** Put the correct policy in the prompt, or retrieve the relevant help-center article
-   into the context (Season 4). This changes behavior on the next request, with no training.
-3. **Collect data for a build.** Store corrected drafts as labeled examples, reviewed so a bad correction can't
-   teach the wrong thing.
-4. **Fine-tune only if runtime fixes aren't enough.** Train a new version, run it against an evaluation set that
-   includes the old correct cases, and roll it out behind a canary.
-5. **Pin versions.** Call a specific dated model version in production so the provider's upgrades don't change
-   behavior without a test run.
-
-<Callout type="practice">
-  Treat a model version like a dependency version: pin it, record it in logs with every response, and re-run your
-  evaluations before you upgrade. When behavior changes and you didn't change the prompt, check whether the model
-  version changed.
-</Callout>
-
-## 10. Common mistakes
-
-- **Expecting the model to learn from conversations.** It doesn't. Put persistent knowledge in the prompt, retrieval
-  or a memory store.
-- **Budgeting from training costs alone.** Inference is paid per token, forever. At scale, it's often the bigger line
-  item.
-- **Planning training hardware from inference memory.** A GPU that serves a model at 16-bit is nowhere near enough to
-  fully train it: mixed-precision Adam needs about 8× the memory of 16-bit weights, before activations.
-- **Letting live feedback update weights directly.** One user or bot sending wrong labels can wreck a model in
-  minutes (see the exercise).
-- **Using a moving model alias in production.** An alias like "latest" can point at new weights tomorrow. Pin a
-  version.
-- **Assuming fine-tuning only fixes things.** In the code example, v2 fixed the slow bot but grew *more* confident
-  about its mistake on the fast human: 0.719 before, 0.882 after. Every new build needs a regression eval.
-- **Confusing context with weights.** A long system prompt changes behavior per request, costs tokens every call and
-  disappears when removed. Fine-tuning changes weights once and needs a release.
-
-## 11. Limitations
-
-- **Frozen models go stale.** A model knows only what was in its training data up to its cutoff. Fresh facts need
-  retrieval or a new build.
-- **Retraining is slow and expensive.** Even fine-tuning needs data preparation, compute, evaluation and deployment,
-  so the fix loop is days or weeks, not minutes.
-- **The line is blurring in places.** Test-time compute spends extra inference on reasoning (lesson 1.4.9), and
-  research on continual and online learning continues. Neither changes the basic deployed-weights model you'll
-  work with.
-- **Inference isn't free.** Per-request cost grows with prompt and output length, and latency grows with output
-  length.
-- **Cost rules of thumb are rough.** `6N` and `2N` ignore attention's dependence on sequence length, hardware
-  efficiency and communication overhead.
-
-## 12. When to use it
-
-This split is how nearly every production ML system works. Use it deliberately:
-
-- **Budgeting:** estimate training (or fine-tuning) as a one-off project cost and inference as a per-request
-  operating cost.
-- **Architecture:** design inference as a stateless service, and keep "memory" and user data in your own storage,
-  sent as context.
-- **Release management:** version weights, evaluate each build, and roll out with canaries and rollbacks.
-- **Deciding how to change behavior:** try prompt and retrieval changes first (runtime), and move to fine-tuning
-  (build time) when you need consistent style, format or skills the base model lacks.
-- **Batch vs online:** precompute predictions in a batch job when inputs are known ahead of time, like nightly
-  scoring of all accounts.
-
-## 13. When NOT to use it
-
-Some situations don't fit a rigid "train once, serve frozen" split:
-
-- **Rapidly shifting data**, such as fraud patterns or recommendations, may need **frequent automated retraining**,
-  daily or hourly, with automatic evaluation gates. It's still a build pipeline, just a fast one.
-- **Simple online-learning models**, like some bandits and click-rate estimators, update small parameter sets from
-  live data by design, with safeguards against manipulation.
-- **When the problem is knowledge, not behavior.** Don't reach for training to teach facts that change. Retrieval
-  keeps them updatable at runtime.
-- **Tiny rules-based problems.** If a deterministic rule works, there's no training or inference split to manage
-  (lesson 1.1.2).
-
-## 14. Interview explanation (30 seconds)
-
-> Training is the build step: forward pass, loss, backpropagation and weight updates, repeated over a large dataset,
-> usually on a GPU cluster for days or weeks. It produces frozen weights. Inference is runtime: load those weights and
-> run only the forward pass for each request, which is much cheaper per call but repeats for every request and, for
-> LLMs, every generated token. Weights don't change during inference, so a chat model doesn't learn from
-> conversations. Changing its behavior means prompting or retrieval at runtime, or fine-tuning a new version.
-
-## 15. Deep interview explanation (2–5 minutes)
-
-Define both phases in terms of computation. A training step runs the forward pass, computes the loss, runs the
-backward pass (about twice the forward cost) and updates the parameters with an optimizer, so each training token
-costs about `6N` FLOPs for a transformer with `N` parameters. Inference runs only the forward pass, about `2N` FLOPs
-per token, and for autoregressive generation that repeats once per output token, with a KV cache to avoid
-recomputing the prompt.
-
-Give the scale. Llama 2 7B was pretrained on 2 trillion tokens: roughly 8 × 10²² FLOPs, and Meta reports 184,320
-A100 GPU hours. A single response is milliseconds to seconds on one GPU. But inference repeats across every user, so
-lifetime serving cost can rival or exceed training, which is why serving optimization matters.
-
-Contrast memory. Inference needs the weights plus the KV cache. Training with mixed-precision Adam needs about 16
-bytes per parameter for weights, gradients and optimizer state, plus stored activations for backprop, which is why
-training shards state across many GPUs.
-
-Explain the operational consequences. Weights are an immutable artifact: version them, evaluate them and deploy
-them like any release. Inference services are stateless. Conversation history and memory are application state sent
-as context. Models don't learn online in production because there's no reliable label, updates would be
-non-reproducible, and live updates invite data poisoning.
-
-Close with how behavior changes: prompts and retrieval at runtime; fine-tuning or retraining at build time, with
-regression evals because a fix can break other cases; and batch vs online inference as a separate design choice
-depending on whether inputs are known ahead of time.
-
-## 16. Hands-on exercise
-
-Run the code example, then:
-
-1. **Try online learning, then attack it.** Add an `onFeedback(x, y)` handler that immediately takes one gradient
-   descent step (learning rate 0.01) on a mutable copy of v1's weights. Simulate an attacker who sends the obvious
-   script bot `[2.0, 1]` labeled as human (`y = 0`) over and over. Print its `P(bot)` and the weights' version after
-   10, 50, 100 and 200 submissions.
-2. **Napkin math.** Llama 2 70B was also trained on 2.0 trillion tokens. Estimate its training FLOPs with `6ND`.
-   Then compute how many generated tokens that equals. Why is the answer the same as for 7B?
-3. **GPU time.** Convert 184,320 GPU hours into GPU-days, and into days of wall-clock time on 1,024 GPUs.
-
-<Answer label="Answers from running it">
-  1. The script bot starts at `P(bot) = 0.9016` with v1's weights. After 10 poisoned submissions it's 0.1733, so the
-     model now lets it through. After 50 it's 0.0291, after 100 it's 0.0141 and after 200 it's 0.0069. The version
-     hash changes after every submission (`131d3052`, `96e3fc55`, `176c4e84`, `839faa42` at those checkpoints), so
-     no two users are guaranteed the same model. That's why production systems don't learn from live traffic.
-  2. `6 × 70e9 × 2e12 ≈ 8.40 × 10²³` FLOPs, about 10× the 7B model. In generated tokens it's still about
-     6 × 10¹² tokens, because `6ND / 2N = 3D`: the parameter count cancels, leaving 3× the training tokens.
-  3. 184,320 ÷ 24 = 7,680 GPU-days, which is 7.5 days on 1,024 GPUs.
-</Answer>
-
-## 17. Challenge
-
-Build a tiny **model registry and serving layer** for the bot net.
-
-1. **Registry.** Store model versions as `{ version, weights, trainedOn, createdAt }`, keyed by content hash. Make
-   stored weights immutable.
-2. **Pinned serving.** A `serve(request)` function reads a `production` pointer to a version. Log the version with
-   every prediction.
-3. **Evaluation gate.** Hold out a few labeled signups that neither v1 nor v2 trained on (make up 4–6 realistic
-   ones). Promote a candidate only if its cross-entropy on that set is no worse than production's *and* it doesn't
-   flip any previously correct prediction to wrong.
-4. **Canary.** Route a deterministic 10% of requests (hash the request id) to the candidate, and compare the share of
-   signups each version flags as bots.
-5. **Rollback.** One call moves `production` back to the previous version. Show that predictions return exactly to
-   v1's.
-
-<Answer label="Hints">
-  Reuse `artifact()` from the code example for hashing. Keep the "previously correct → now wrong" check separate from
-  the aggregate loss, because the code example already shows a fine-tune that lowers errors overall while getting
-  more confident on one wrong answer. For the canary, `parseInt(sha256(requestId).slice(0, 8), 16) % 10 === 0`
-  gives a stable 10% split. Rollback is just changing a pointer, because v1's weights were never modified. That's the
-  payoff of treating weights as immutable build artifacts.
-</Answer>
-
-## 18. Sources and acknowledgements
+| Training | The phase where a model learns its parameters from data |
+| Inference | Using a trained model to produce answers |
+| Frozen weights | Parameters that don't change during inference |
+| Checkpoint | A saved copy of a model's parameters |
+| Fine-tuning | Extra training on top of an existing model |
+
+Next: lesson 1.1.10 looks at the most common way training goes wrong: a model that memorizes instead of learning.
+
+## Sources and acknowledgements
 
 This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

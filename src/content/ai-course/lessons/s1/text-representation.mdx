@@ -1,0 +1,120 @@
+---
+topic: '1.2.1'
+date: 2026-09-17
+summary: Models only understand numbers, so text must be turned into numbers first; the classic ways are one-hot vectors, bag-of-words word counts and TF-IDF, which gives rare words more weight, and their limits explain why embeddings came next.
+estimatedMinutes: 9
+tags: [NLP, Text representation, Search]
+prerequisites: ['1.1.2']
+references:
+  - title: 'scikit-learn: Feature extraction from text'
+    source: scikit-learn documentation
+    url: https://scikit-learn.org/stable/modules/feature_extraction.html
+    tier: must
+    level: Beginner
+    why: A practical explanation of bag-of-words and TF-IDF with small examples.
+  - title: 'Introduction to Information Retrieval: Inverse document frequency and tf-idf weighting'
+    source: Manning, Raghavan & Schütze (2008)
+    url: https://nlp.stanford.edu/IR-book/html/htmledition/tf-idf-weighting-1.html
+    tier: should
+    level: Intermediate
+    why: A short, precise explanation of TF-IDF from the search-engine point of view.
+  - title: A statistical interpretation of term specificity and its application in retrieval
+    source: Karen Spärck Jones (1972), Journal of Documentation
+    url: https://www.staff.city.ac.uk/~sbrp622/idfpapers/ksj_orig.pdf
+    tier: optional
+    level: Advanced
+    why: The paper that introduced giving rare words more weight, the idea later called inverse document frequency.
+  - title: 'The Probabilistic Relevance Framework: BM25 and Beyond'
+    source: Robertson & Zaragoza (2009)
+    url: https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf
+    tier: optional
+    level: Advanced
+    why: Explains BM25, the improved version of TF-IDF that search engines still use.
+---
+
+## Why this matters
+
+Everything you've learned so far works on numbers. But much of AI is about text: emails, tickets, documents,
+chat messages. Before any model can read text, the text has to become numbers. How you do that decides what the
+model can understand.
+
+By the end of this lesson, you'll know the three classic ways to turn text into numbers, and what they miss.
+
+## The idea
+
+First, make a **vocabulary**: a list of every word you've seen, each with a position number. Then:
+
+- **One-hot:** a single word becomes a long list of zeros with a single 1 at that word's position.
+- **Bag-of-words:** a whole document becomes a list of **word counts**, one count per vocabulary word. Word order is
+  thrown away, as if you tipped the words into a bag.
+- **TF-IDF:** like bag-of-words, but each count is weighted by how **rare** the word is across all documents. Common
+  words like "the" or "on" count less. Rare, telling words like "refund" or "crash" count more.
+
+A list of numbers like this is called a **vector**.
+
+```text
+vocabulary:  app  crash  login  on  page  save  the ...
+
+"app crash on save"
+bag-of-words: [1,   1,     0,    1,   0,    1,   0  ...]
+TF-IDF:       [.4, .6,     0,   .2,   0,   .5,   0  ...]
+                    ↑ rare word, more weight   ↑ common, less
+```
+
+(The TF-IDF numbers above are illustrative.)
+
+## A real-life example
+
+Think about **finding a recipe in a big cookbook** by its index.
+
+If you look up "salt", you'll find almost every recipe. That word doesn't help. If you look up "saffron", you'll
+find three recipes, and they're probably what you want. TF-IDF uses exactly this intuition: a word that appears
+everywhere tells you little; a rare word tells you a lot. This idea of weighting words by rarity comes from Karen
+Spärck Jones (1972).
+
+In real products: **the search box in many help centers and documentation sites** ranks results by matching words
+this way. Keyword search in tools like Elasticsearch uses BM25, a refined version of TF-IDF (Robertson & Zaragoza,
+2009). Lesson 3.2.1 covers it.
+
+## How it works
+
+1. **Split the text into words** and lowercase them: "App crashes on Save" → `app, crashes, on, save`.
+2. **Build the vocabulary** from all documents. A real vocabulary can have hundreds of thousands of words.
+3. **Count the words** in each document. That's bag-of-words.
+4. **Weight the counts.** For each word, check how many documents contain it. The fewer documents, the higher its
+   weight. Multiply. That's TF-IDF.
+5. **Compare documents** by how similar their vectors are. Two support tickets that share rare words, like "refund"
+   and "duplicate charge", will score as similar.
+
+## Where you'll see it
+
+- **Keyword search** in databases, docs sites and search engines.
+- **Quick baselines** for classifying text, like tagging support tickets, before trying an LLM.
+- **Hybrid search** in modern AI apps combines keyword scores with embeddings (lesson 3.2.2).
+- **Finding exact terms** like error codes, product names or function names, where keyword matching beats "meaning"
+  search.
+
+## Common confusions
+
+- **These methods don't understand meaning.** "Crash" and "freeze" are unrelated words to them, even though they
+  describe similar bugs. Embeddings fix this (lesson 1.2.3).
+- **Word order is lost.** "Dog bites man" and "man bites dog" get the same bag-of-words.
+- **Unknown words are ignored.** A word that wasn't in the vocabulary, like a new product name or a typo, just
+  disappears. Tokenization handles this better (lesson 1.2.2).
+- **LLMs don't use TF-IDF.** They use tokens and learned embeddings instead. TF-IDF is still widely used for search.
+
+## Key terms
+
+| Term | Meaning |
+|---|---|
+| Vocabulary | The list of all words the system knows |
+| Vector | A list of numbers representing something, like a document |
+| One-hot vector | A vector with a single 1 marking one word |
+| Bag-of-words | A document as word counts, ignoring order |
+| TF-IDF | Word counts weighted so rare words matter more |
+
+Next: lesson 1.2.2 explains tokens, the smaller pieces of text that modern models use instead of whole words.
+
+## Sources and acknowledgements
+
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

@@ -1,398 +1,103 @@
 ---
 topic: '1.1.2'
 date: 2026-09-17
-summary: Classic software is logic you write; machine learning is logic you search for — you choose a family of functions, and data picks the one that fits.
-estimatedMinutes: 25
+summary: In normal programming you write the rules; in machine learning you give examples and the computer learns the rules, which works well when the rules are too fuzzy or too many to write by hand.
+estimatedMinutes: 8
 tags: [Foundations, Machine Learning]
 prerequisites: ['1.1.1']
 references:
-  - title: Rules of Machine Learning
-    source: Google for Developers (Martin Zinkevich)
-    url: https://developers.google.com/machine-learning/guides/rules-of-ml
+  - title: 'Deep Learning with Python, Chapter 1: What is deep learning?'
+    source: François Chollet — Manning (free online edition)
+    url: https://deeplearningwithpython.io/chapters/chapter01_what-is-deep-learning/
     tier: must
     level: Beginner
-    why: Hard-won engineering advice on exactly this decision — launch with heuristics first, and move to ML once rules get complex. Read Phase I (Rules 1–15).
+    why: The source of the "rules and data in, answers out" versus "data and answers in, rules out" picture used in this lesson.
   - title: Software 2.0
     source: Andrej Karpathy, 2017
     url: https://karpathy.medium.com/software-2-0-a64152b37c35
-    tier: must
-    level: Beginner
-    why: The essay that framed neural networks as a new kind of software — programs compiled from data instead of written by hand. It gives you the vocabulary for this whole course.
-  - title: Introduction to Machine Learning Problem Framing
-    source: Google for Developers
-    url: https://developers.google.com/machine-learning/problem-framing
     tier: should
     level: Beginner
-    why: A practical checklist for deciding whether a problem needs ML at all, and how to frame it if it does.
-  - title: Hidden Technical Debt in Machine Learning Systems
-    source: Sculley et al. (Google), NeurIPS 2015
-    url: https://papers.nips.cc/paper/5656-hidden-technical-debt-in-machine-learning-systems
+    why: A short essay arguing that more and more software will be learned from data instead of written by hand.
+  - title: Rules of Machine Learning
+    source: Google for Developers (Martin Zinkevich)
+    url: https://developers.google.com/machine-learning/guides/rules-of-ml
     tier: optional
-    level: Intermediate
-    why: Explains why learned functions carry maintenance costs that rules don't — data dependencies, feedback loops and "changing anything changes everything".
+    level: Beginner
+    why: Practical advice from Google, including its first rule, which says not to be afraid to launch without machine learning.
 ---
 
-import Callout from '../../../../components/course/Callout.astro';
-import Answer from '../../../../components/course/Answer.astro';
+## Why this matters
 
-## 1. Why does this exist?
+As a developer, you solve problems by writing rules: `if`, `else`, loops. Machine learning solves problems in a
+different way. Knowing when each way fits is the most useful AI judgment a software engineer can have.
 
-Every program you've written is a function someone designed line by line. That works when you can **state the
-logic**: "orders over ₹5,000 ship free", "a password needs 12 characters".
+By the end of this lesson, you'll know what a "learned function" is and when learning beats writing rules.
 
-Many valuable problems don't work that way. Nobody can write down the rules for "is this photo a cat?", "is this
-review sarcastic?", or "which word comes next in this sentence?". People do these tasks easily, but they can't
-explain *how* precisely enough to turn it into `if` statements.
+## The idea
 
-Machine learning exists because of that gap. When you can't write the function but can collect **examples of its
-inputs and correct outputs**, you can have the computer *find* a function that reproduces those examples.
+In **normal programming**, you write the rules. The computer applies them to data and gives answers.
 
-## 2. What problem does it solve?
+In **machine learning**, you give the computer data and the correct answers. It figures out the rules by itself.
+The result is a **learned function**: a function nobody wrote line by line. It was shaped by examples.
 
-It solves **programs whose logic is too complex, too fuzzy, or changes too fast to write by hand**:
-
-- **Too complex:** vision, speech and language involve millions of interacting patterns.
-- **Too fuzzy:** "spam", "toxic" and "relevant" have no crisp definition, only many labeled examples.
-- **Too fast-changing:** fraud and bot patterns shift weekly. Refitting from new data beats rewriting rules.
-
-It also gives you a clear way to **decide between the two approaches**. That decision is one of the most common
-calls an AI engineer makes.
-
-## 3. Simple explanation
-
-With **rules**, you write the function:
-
-```
-input ──▶ [ logic YOU wrote ] ──▶ output
+```text
+Normal programming:   rules + data     →  answers
+Machine learning:     data + answers   →  rules
 ```
 
-With a **learned function**, you write three smaller things instead:
+This way of drawing the difference comes from François Chollet (*Deep Learning with Python*).
 
-1. **A family of possible functions** (the *model*): for example "flag the signup if form-fill time is below some threshold `t`".
-   The unknown numbers, like `t`, are the **parameters**.
-2. **A way to score a candidate** (the *loss*): for example "how many labeled examples does it get wrong?"
-3. **A search procedure** (the *optimizer*): for example "try thresholds and keep the best one".
+## A real-life example
 
-Then you feed it **labeled examples**. The search picks the parameters, and the result is a normal function you can
-call. You designed its *shape*; the data decided its *details*.
+Think about how a child learns what a dog is.
 
-<Callout type="fact">
-  "Learning" in machine learning means searching for parameter values that minimize a loss on example data. That's
-  all it is. Modern LLMs work the same way, just with billions of parameters and a far better search procedure
-  (gradient descent, lesson 1.1.7).
-</Callout>
+Nobody gives the child a rulebook: "four legs, fur, tail, barks". That rulebook would fail anyway. Some dogs have no
+tail, cats also have four legs, and a toy dog doesn't bark. Instead, the child sees many dogs, a parent says "dog",
+and the child learns the pattern. Soon they recognize a breed they have never seen.
 
-## 4. Mental model
+Machine learning works the same way. **Gmail's spam filter** is a real case. Writing rules like "contains 'free
+money'" breaks quickly, because spammers change words. So the filter learns from the huge number of emails people
+mark as spam, and it keeps up as spam changes.
 
-**Rules are code you write. A learned function is code compiled from data.**
+## How it works
 
-- The **dataset** is the source code.
-- **Training** is the compiler.
-- The **parameters** (weights) are the compiled binary: they run fine, but you can't meaningfully read or hand-edit them.
-- To change the behavior, you mostly change the **data** and recompile. You don't patch the binary.
+1. **Collect examples.** For example, 10,000 emails, each labeled "spam" or "not spam".
+2. **Pick a model.** A model is a function with many adjustable numbers inside it, called parameters (lesson 1.1.5).
+3. **Train it.** The computer adjusts those numbers again and again until the model's answers match the labels as
+   often as possible (lessons 1.1.6 and 1.1.7).
+4. **Use it.** The trained model now works like a normal function: email in, "spam" or "not spam" out.
+5. **Check it on new data.** A model can do well on the examples it saw and still fail on new ones (lesson 1.1.10).
 
-This is the idea behind Karpathy's "Software 2.0" framing: Software 1.0 is written by people, Software 2.0 is
-optimized from data.
+The key shift: you stop writing the logic. You spend your effort on good examples and on checking results.
 
-## 5. How it works internally
+## Where you'll see it
 
-Take one concrete task: **flag bot signups** based on how many seconds a user took to fill in the signup form.
+- **Fuzzy problems** use learned functions: spam, fraud, face recognition, translation, recommendations.
+- **Exact problems** still use rules: tax calculations, permissions, payments, form validation.
+- **Most real products mix both.** A checkout uses rules for prices and a learned model for fraud risk.
+- **LLMs are learned functions too**, just very large ones. Nobody wrote the rules for how ChatGPT answers.
 
-**Rule-based.** You look at a few cases, guess that bots are fast, and write
-`secondsToFill < 3`. Both the logic (a threshold on time) and the number (3) come from your head.
+## Common confusions
 
-**Learned.** You keep the *logic shape* but let data choose the number:
+- **Machine learning isn't always better.** If you can write the rules clearly, rules are cheaper, faster and
+  easier to explain. Google's own ML guide says you can launch without machine learning first (Zinkevich).
+- **A learned function isn't magic.** It only knows patterns from its examples. Bad or biased examples give bad
+  results.
+- **"Learning" happens during training, not while you use it.** A spam filter doesn't change with each email unless
+  it is retrained (lesson 1.1.9).
 
-1. **Collect labeled data:** past signups with `secondsToFill` and a human-reviewed `isBot` label.
-2. **Define the model family:** `predict(s) = s.secondsToFill < t`. There is one parameter, `t`.
-3. **Define the loss:** the number of labeled signups the model gets wrong.
-4. **Search:** try candidate values of `t` (midpoints between observed times), compute the loss for each, and keep
-   the lowest.
-5. **Freeze and use:** the best `t` is now part of a function you deploy. Running it on new signups is **inference**.
+## Key terms
 
-A few important consequences follow:
+| Term | Meaning |
+|---|---|
+| Rule-based system | Software where people write the logic by hand |
+| Learned function | A function whose behavior comes from training on examples |
+| Model | The learned function, with its adjustable numbers inside |
+| Training data | The examples, often with correct answers, used to train a model |
+| Label | The correct answer attached to a training example |
 
-- **The family limits what can be learned.** No threshold on time alone can separate a human using autofill (fast)
-  from a slow bot. Only a richer family, with more features or a more flexible model, can do that.
-- **Fitting the examples isn't the goal.** You want the function to work on *future* signups. A model that memorizes
-  quirks of its training data is **overfitting** (lesson 1.1.10).
-- **Search gets hard fast.** Trying every value works for 1 parameter. For 2 parameters, a grid might need 100×100
-  tries. For billions of parameters, brute force is impossible, so we need gradient descent, which follows the
-  slope of the loss downhill (lesson 1.1.7).
+Next: lesson 1.1.3 shows the two main things learned functions do: tell things apart, or create new things.
 
-## 6. Visual explanation
-
-Where the logic comes from:
-
-```
-SOFTWARE 1.0 (rules)
-  developer ──writes──▶ logic
-  input ──▶ logic ──▶ output
-
-SOFTWARE 2.0 (learned)
-  developer ──chooses──▶ model family + loss + optimizer
-  labeled data ──▶ training (search) ──▶ parameters
-  input ──▶ model(parameters) ──▶ output
-```
-
-The bot-signup data sorted by fill time (B = bot, h = human):
-
-```
-seconds  1.2  2.0  3.1  3.8  4.0  4.4  4.8  5.5  6.3  9.8  14 ...
-          B    B    B    h    B    B    B    h    h    h    h
-                  ▲                        ▲
-             rule: 3.0                 learned: 5.15
-            (4 mistakes)         (1 mistake: the autofill human)
-```
-
-A learned function is a search over a family:
-
-```
-family: s.secondsToFill < t
-
- t =  2.5  → 4 errors
- t =  3.45 → 3 errors
- t =  5.15 → 1 error   ◀── keep this one
- t =  8.05 → 3 errors
-```
-
-## 7. Connection to software engineering
-
-| Software engineering | Rules | Learned functions |
-|---|---|---|
-| Source of truth | Code in git | Code *and* the training data |
-| Build | Compile/bundle | Training run |
-| Artifact | JS bundle | Model file (parameters) |
-| Code review | Read the diff | Review the data, metrics and eval results. You can't review weights. |
-| Testing | Exact unit tests | Accuracy on a held-out dataset (lesson 1.1.11) |
-| Fixing a bug | Change a line | Add or fix examples, change features, retrain |
-| Determinism | Yes | Usually yes at inference for a fixed model; behavior changes across retrains |
-| Explainability | Read the code | Needs tooling, or a simpler model |
-| Maintenance | Rules pile up and conflict | Data drifts, so the model needs retraining |
-
-**As a frontend engineer:** form validation, feature flags, routing and permissions are rules, and should stay
-rules. "Suggest a label for this ticket", "rank these search results" and "autocomplete this sentence" are
-learned-function territory.
-
-**For system design:** the two approaches combine well. Hard constraints (permissions, legal limits, blocklists)
-stay in deterministic code *around* a learned component. This pattern returns throughout the course as guardrails,
-output validation and tool permissions.
-
-## 8. Code example
-
-The same bot detector written both ways. It runs as-is with `node --experimental-strip-types bot.ts`
-(Node 22.6+), or with any TypeScript runner.
-
-```ts
-type Signup = { secondsToFill: number; isBot: boolean };
-
-// Labeled examples: past signups a human reviewed.
-const history: Signup[] = [
-  { secondsToFill: 1.2, isBot: true },
-  { secondsToFill: 2.0, isBot: true },
-  { secondsToFill: 3.1, isBot: true },
-  { secondsToFill: 4.0, isBot: true },
-  { secondsToFill: 4.4, isBot: true },
-  { secondsToFill: 5.5, isBot: false },
-  { secondsToFill: 4.8, isBot: true },
-  { secondsToFill: 3.8, isBot: false }, // a human using password-manager autofill
-  { secondsToFill: 6.3, isBot: false },
-  { secondsToFill: 9.8, isBot: false },
-  { secondsToFill: 14.0, isBot: false },
-  { secondsToFill: 22.5, isBot: false },
-  { secondsToFill: 38.0, isBot: false },
-];
-
-// 1) Rule: a human picks the logic AND the number.
-const isBotRule = (s: Signup) => s.secondsToFill < 3;
-
-// 2) Learned function: a human picks the *family* ("is time below some threshold t?"),
-//    and the data picks t.
-type Model = { threshold: number };
-const predict = (model: Model, s: Signup) => s.secondsToFill < model.threshold;
-
-// Loss: how many examples a classifier gets wrong.
-const errors = (classify: (s: Signup) => boolean, data: Signup[]) =>
-  data.filter((s) => classify(s) !== s.isBot).length;
-
-// Optimizer: brute-force search over candidate thresholds.
-function fit(data: Signup[]): Model {
-  const times = [...new Set(data.map((s) => s.secondsToFill))].sort((a, b) => a - b);
-  const candidates = times.slice(1).map((t, i) => (t + times[i]) / 2);
-
-  let best: Model = { threshold: candidates[0] };
-  for (const threshold of candidates) {
-    const model = { threshold };
-    if (errors((s) => predict(model, s), data) < errors((s) => predict(best, s), data)) best = model;
-  }
-  return best;
-}
-
-const model = fit(history);
-console.log('rule errors:   ', errors(isBotRule, history)); // 4
-console.log('learned model: ', model); // { threshold: 5.15 }
-console.log('learned errors:', errors((s) => predict(model, s), history)); // 1
-```
-
-Two things to notice:
-
-- **`fit` knows nothing about bots.** It's a generic search, and the domain knowledge comes entirely from `history`.
-  Swap in a different dataset and you get a different function, without changing any code.
-- **The remaining error is a limit of the model family, not the search.** No threshold on time alone can tell the
-  autofill human from a bot. Fixing it takes a better *feature*, such as keystroke count, not a better search.
-
-<Callout type="note">
-  Measuring errors on the same examples you trained on flatters the model. The honest version evaluates on data the
-  model never saw. You'll do that in the challenge, and properly in lessons 1.1.10–1.1.11.
-</Callout>
-
-## 9. Real-world example
-
-**Payment fraud and signup abuse** are the classic hybrid. A typical production setup looks like this:
-
-- **Rules** encode policy and known facts: block sanctioned countries, cap card attempts per minute, always allow
-  internal test accounts. These must be exact, auditable and changeable within minutes.
-- **A learned model** scores each transaction's risk from hundreds of signals (device, velocity, history), because
-  no human could hand-tune those interactions, and attackers keep changing them.
-- **Rules consume the model's output:** "block if risk above 0.9; send to manual review between 0.6 and 0.9".
-  The thresholds are business decisions, kept in configuration.
-- **Reviewer decisions become new labels** that feed the next training run.
-
-Many payment platforms expose exactly this split: a fraud model score, plus user-defined rules that act on it.
-
-<Callout type="practice">
-  Following Google's Rules of ML: launch with simple heuristics, collect data and labels while they run, and switch
-  to a learned model once the heuristics become complex. Keep hard constraints as rules even after that.
-</Callout>
-
-## 10. Common mistakes
-
-- **Jumping to ML before trying a rule.** A simple heuristic often captures most of the value, costs nothing to run,
-  and produces the data you'd need to train a model later.
-- **Keeping rules long after they've become a model.** Three hundred interacting `if` statements with tuned
-  magic numbers is a hand-trained model with none of the tooling. That's the time to switch.
-- **Believing "the model learned it, so it's objective".** A learned function inherits every bias and labeling
-  error in its data, and your choice of family and features.
-- **Treating the model file as the source of truth.** Without the data, labels and training code you can't
-  reproduce, debug or improve it. Version all three.
-- **Moving hard constraints into the model.** Permissions, compliance rules and safety limits must stay
-  deterministic, even when a model "usually gets them right".
-
-## 11. Limitations
-
-**Rules:**
-- They only cover cases someone anticipated, and they fail silently on everything else.
-- They get brittle as they grow: conflicts, ordering bugs, magic numbers nobody remembers setting.
-
-**Learned functions:**
-- They need representative, correctly labeled data, which is often the most expensive part.
-- They're only as expressive as the model family and features you choose.
-- They're wrong some of the time *by design*, so you manage error rates rather than eliminate bugs.
-- They're hard to explain and hard to patch for one specific case.
-- They degrade when the world changes (**data drift**), even if no code changed.
-
-## 12. When to use it
-
-Use **rules** when:
-
-- the logic is known, can be stated, and is fairly stable
-- exactness, auditability or regulation matter (money, permissions, compliance)
-- you have little or no labeled data yet
-
-Use a **learned function** when:
-
-- people can do the task but can't state the rules (language, images, relevance)
-- the rule set has become large, conflicting or constantly re-tuned
-- you have, or can collect, enough representative labeled examples
-- a small error rate is acceptable and you can design for it
-
-## 13. When NOT to use it
-
-- **Don't learn what you can state.** Date formatting, tax math and input validation should never be models.
-- **Don't train a model without a way to measure it.** If you can't build an evaluation set, you can't tell
-  whether the model beats the rule it replaces.
-- **Don't train your own model when a pretrained one fits.** For most language tasks in this course you'll *use*
-  a learned function someone else trained (an LLM) and shape its behavior with prompts, retrieval and tools, not
-  your own training runs. The rules-vs-learned trade-offs still apply.
-
-## 14. Interview explanation (30 seconds)
-
-> Rule-based software is logic a developer writes explicitly. A learned function is logic found from data: you pick
-> a family of functions with adjustable parameters, define a loss that measures error on labeled examples, and use
-> an optimizer to find the parameters that minimize it. Rules are exact, auditable and good for known, stable logic.
-> Learned functions handle fuzzy or complex patterns you can't write down, at the cost of needing data, having an
-> error rate and drifting over time. Real systems usually combine them, with rules as guardrails around a model.
-
-## 15. Deep interview explanation (2–5 minutes)
-
-Start with the core difference: **who writes the function**. In traditional software a developer encodes the
-logic. In machine learning the developer writes a *learning setup*, and the logic comes from data.
-
-That setup has three parts. First, a **model family**: a parameterized template, from "a threshold on one number" to
-a neural network with billions of weights. Second, a **loss function** that scores how wrong a candidate is on
-labeled examples. Third, an **optimizer** that searches the parameter space for low loss. With one parameter you
-could brute-force it. Real models use gradient descent because the space is enormous. The output is a set of
-parameters, effectively a compiled artifact. The dataset plays the role of source code, which is Karpathy's
-"Software 2.0" idea.
-
-Then cover the trade-offs. Rules are deterministic, explainable, cheap and exact, but they only handle cases someone
-anticipated, and they turn brittle as they grow. Learned functions handle fuzzy, high-dimensional patterns like
-language and images, and they adapt when you retrain on new data. In exchange they need representative labeled
-data, have an inherent error rate, are hard to explain or patch for one case, and degrade under data drift. They also
-bring new technical debt: data dependencies and feedback loops, as described in Google's "Hidden Technical Debt in
-ML Systems" paper.
-
-Finish with how you'd decide in practice. Start with heuristics if you can state them; they ship fast and generate
-labels. Move to a model when the heuristics become complex or keep being re-tuned. Keep hard constraints like
-permissions, compliance and safety limits as rules *around* the model. Fraud detection is a good example: rules for
-policy, a model for the risk score, rules acting on that score, and reviewer decisions becoming new training data.
-
-## 16. Hands-on exercise
-
-**Part A: run it.** Copy the code example into `bot.ts` and run it. Then change the data and watch the learned
-threshold follow it, while the rule stays wrong:
-
-1. Add five slow bots (8–12 seconds) that simulate human typing delays. What happens to `t` and to the error counts?
-2. Remove the autofill human. Does the learned model reach zero errors?
-
-**Part B: add a feature.** Give each signup a `keystrokes` count. Humans type, while autofill and bots paste, but
-autofill humans still usually press a few keys. Label 16–20 signups yourself, then write:
-
-- a **rule** using both features, tuned by hand
-- a **learned** version whose family is `secondsToFill < t1 && keystrokes < t2`, fitted with a nested loop over
-  candidate values of `t1` and `t2`
-
-Compare error counts, and count how many candidate pairs your search evaluated.
-
-<Answer label="What you should notice">
-  In Part A, the learned threshold moves toward the new data automatically, while the hand-written rule needs a
-  person to notice and re-tune it. In Part B, the second feature can fix the autofill case that no amount of search
-  on time alone could fix: **better features beat better search**. The number of candidate pairs is roughly the
-  square of the single-feature count. That quadratic, then exponential, growth is why real models can't use brute
-  force, and why gradient descent (lesson 1.1.7) matters.
-</Answer>
-
-## 17. Challenge
-
-Make the comparison honest, then make it realistic.
-
-1. **Train/test split.** Generate 200 synthetic signups with a seeded random generator: bots mostly fast, humans
-   mostly slow, and about 10% overlap on each side. Fit on 150 and report errors on the other 50 for both the rule and
-   the learned threshold.
-2. **Drift.** Generate a second batch where bots got smarter: their fill times shift up by 4 seconds. Evaluate the
-   *old* model and rule on it. Then retrain on a mix of old and new data and evaluate again.
-3. **Hybrid.** Add a deterministic guardrail that always allows signups from an allowlisted email domain,
-   whatever the model predicts. Where in the code does it belong: before `predict`, after it, or inside the loss?
-4. **Write-up.** In five bullets: which approach you'd ship on day 1, what data you'd log from launch, and the
-   signal that would tell you it's time to switch.
-
-<Answer label="Hints">
-  The guardrail belongs outside the model, as a check before or after `predict`. Putting business policy into the
-  loss makes it probabilistic and invisible. Under drift, both the old rule and the old model degrade, but only one of
-  them can be fixed by rerunning `fit` on new labels. That is the operational advantage of learned functions, and the
-  reason you must keep collecting labels after launch.
-</Answer>
-
-## 18. Sources and acknowledgements
+## Sources and acknowledgements
 
 This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

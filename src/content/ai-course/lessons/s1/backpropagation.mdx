@@ -1,8 +1,8 @@
 ---
 topic: '1.1.8'
 date: 2026-09-17
-summary: Backpropagation computes the gradient for every parameter in one backward sweep by passing "blame" from the loss back through each layer with the chain rule — and it's what makes gradient descent affordable for networks with billions of weights.
-estimatedMinutes: 35
+summary: Backpropagation works out how much each weight in a neural network contributed to a wrong answer, by passing the error backwards from the output layer to the first layer, so gradient descent knows how to fix every weight.
+estimatedMinutes: 8
 tags: [Foundations, Training, Backpropagation]
 prerequisites: ['1.1.7']
 references:
@@ -11,507 +11,96 @@ references:
     url: https://www.3blue1brown.com/lessons/backpropagation
     tier: must
     level: Beginner
-    why: The clearest visual version of "each weight gets nudged in proportion to how much it contributed to the error", with no calculus required.
+    why: A visual, intuition-first explanation of backpropagation without heavy math.
   - title: 'Neural networks: Training using backpropagation'
     source: Google Machine Learning Crash Course
     url: https://developers.google.com/machine-learning/crash-course/neural-networks/backpropagation
-    tier: must
-    level: Beginner
-    why: A short, practical page on backprop, including the vanishing, exploding and dead ReLU gradient problems this lesson names.
-  - title: 'Calculus on Computational Graphs: Backpropagation'
-    source: Christopher Olah, colah's blog (2015)
-    url: https://colah.github.io/posts/2015-08-Backprop/
     tier: should
-    level: Intermediate
-    why: Explains why reverse-mode differentiation gets every gradient in one pass, using small computational graphs like the ones in this lesson.
-  - title: 'The spelled-out intro to neural networks and backpropagation: building micrograd'
-    source: Andrej Karpathy (YouTube, with code at github.com/karpathy/micrograd)
-    url: https://www.youtube.com/watch?v=VMj-3S1tku0
-    tier: optional
-    level: Intermediate
-    why: A long, hands-on build of a tiny autograd engine, the same idea as this lesson's challenge, in Python.
-  - title: Automatic Differentiation with torch.autograd
-    source: PyTorch Tutorials
-    url: https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html
-    tier: optional
-    level: Intermediate
-    why: Shows what backprop looks like in a real library, where you write only the forward pass and call loss.backward().
+    level: Beginner
+    why: A short page with an interactive walkthrough of the forward and backward pass.
   - title: Learning representations by back-propagating errors
     source: Rumelhart, Hinton & Williams — Nature (1986)
     url: https://www.nature.com/articles/323533a0
     tier: optional
     level: Advanced
-    why: The paper that popularized backpropagation for training neural networks with hidden layers.
-  - title: 'Scaling Laws for Neural Language Models'
-    source: Kaplan et al., OpenAI (2020)
-    url: https://arxiv.org/abs/2001.08361
-    tier: optional
-    level: Advanced
-    why: Source of the estimate that a transformer's backward pass costs about twice the forward pass (6N vs 2N FLOPs per token), credited in this lesson.
+    why: The famous paper that made backpropagation the standard way to train neural networks.
 ---
 
-import Callout from '../../../../components/course/Callout.astro';
-import Answer from '../../../../components/course/Answer.astro';
+## Why this matters
 
-## 1. Why does this exist?
+Gradient descent needs to know how to change every weight. A large model has billions of weights. Backpropagation
+is the trick that works out all those changes quickly. Without it, deep learning wouldn't be practical.
 
-Lesson 1.1.7 trained models with a **numeric gradient**: nudge each parameter up and down and measure how the loss
-moves. That costs two forward passes per parameter, per step. For the 9-parameter bot net that's 18 passes. For
-Llama 2 7B it's about 13.5 billion passes before you can take a single step.
+By the end of this lesson, you'll be able to explain backpropagation as "passing the blame backwards".
 
-That lesson also showed a shortcut. For logistic regression, calculus gave the exact gradient as a simple formula,
-`(p - y) × input`. **Backpropagation is the general way to get that exact gradient for any network**, however many
-layers it has, in one forward pass plus one backward pass. Without it, training neural networks would be
-impractical.
+## The idea
 
-## 2. What problem does it solve?
+When a network gives a wrong answer, **backpropagation** figures out **how much each weight was to blame**.
 
-It solves **"which parameters are to blame for this error, and by how much?"**, efficiently.
+It starts at the output, where the error is known. Then it moves backwards through the layers. At each layer it
+asks: "how much did this weight push the answer in the wrong direction?" That share of blame is the weight's
+gradient. Gradient descent then adjusts each weight based on it.
 
-- **Cost.** One backward pass computes the gradient for *every* parameter. It costs roughly twice a forward pass,
-  whether the model has 9 parameters or 70 billion.
-- **Credit assignment through hidden layers.** A hidden weight never touches the output directly. Backprop works out
-  how a change deep inside the network would ripple forward to the loss.
-- **Generality.** It works on any computation built from differentiable pieces: dense layers, attention,
-  convolutions. That's why one training algorithm covers every architecture in this course.
-
-## 3. Simple explanation
-
-Think of an incident postmortem. The customer-facing error is at the end of a chain: the frontend called an API, the
-API called a service, the service read from a database. To assign responsibility you start at the error and **walk
-backwards**, asking at each hop "how much did this step contribute to what came after it?"
-
-Backprop does exactly that with numbers:
-
-1. **Forward pass:** run the input through the network and **remember every intermediate value**.
-2. **Start at the loss:** how much would the loss change if the final output score changed a little?
-3. **Walk backwards one layer at a time:** each operation passes blame to its inputs, scaled by its own local
-   slope. A weight that multiplied a large value gets a lot of blame. A ReLU that was switched off passes none.
-4. **Collect:** every parameter now has a number saying which way to move it and how strongly. That's the gradient.
-
-Then gradient descent (lesson 1.1.7) takes its step, exactly as before.
-
-## 4. Mental model
-
-**Backprop is blame flowing backwards through a dependency graph, multiplied at every edge.**
-
-```
-blame(parameter) = blame(thing it fed into) × local slope of that edge
+```text
+forward pass:   input → layer 1 → layer 2 → output → loss
+backward pass:  input ← layer 1 ← layer 2 ← output ← loss
+                (blame flows back to every weight)
 ```
 
-That one rule, applied from the loss back to the inputs, is the **chain rule**. You don't need the calculus to use
-the idea: if the output is 3× sensitive to a hidden value, and that hidden value is 2× sensitive to a weight, then
-the output is 6× sensitive to the weight.
+## A real-life example
 
-<Callout type="note" title="Why go backwards?">
-  You could also push sensitivities forwards from each parameter, but you'd need one sweep per parameter. Going
-  backwards from a single loss number reuses the shared work: every parameter's blame is built from the blame
-  already computed for the layer above it.
-</Callout>
+Think of a **restaurant kitchen** where a customer sends back a dish because it's too salty.
 
-## 5. How it works internally
+The head chef doesn't blame everyone equally. They trace it backwards: the plate came from the sauce station; the
+sauce used stock from the prep cook; the stock had too much salt added. Each person gets feedback in proportion to
+how much they caused the problem. The sauce cook adjusts a bit, the prep cook adjusts more.
 
-We'll do backprop by hand on the **2-2-1 bot net** from lesson 1.1.4, with its hand-set weights, on the **slow bot**
-from lesson 1.1.6: `secondsToFill = 4.9`, `keystrokes = 6`, label `bot = 1`. The net gets this one badly wrong.
+Backpropagation does the same for weights. The ones that caused most of the error change the most.
 
-The 9 parameters: hidden 1 has `w11 = -1, w12 = 0, b1 = 5`; hidden 2 has `w21 = 0, w22 = -1, b2 = 8`; the output has
-`v1 = 1, v2 = 1, c = -5`.
+## How it works
 
-**Forward pass (keep every value):**
+1. **Forward pass.** The input goes through the network, layer by layer, and produces an answer.
+2. **Compute the loss.** Compare the answer with the correct one (lesson 1.1.6).
+3. **Backward pass.** Start at the output. Work out how the loss changes if each output-layer weight changes a
+   little. Then use those results to do the same for the layer before, and so on, back to the first layer.
+4. **Reuse work.** Each layer reuses what the layer after it already calculated. That's why it's fast: one backward
+   pass costs roughly as much as a couple of forward passes, not billions of separate checks.
+5. **Update.** Gradient descent uses the gradients to change every weight a little (lesson 1.1.7).
 
-```
-z1 = -1·4.9 + 0·6 + 5 = 0.1     h1 = relu(0.1) = 0.1
-z2 =  0·4.9 - 1·6 + 8 = 2       h2 = relu(2)   = 2
-z  = 1·0.1 + 1·2 - 5  = -2.9    P(bot) = sigmoid(-2.9) = 0.0522
-loss = -ln(0.0522) = 2.9536
-```
+The math behind step 3 is the **chain rule** from calculus. You don't need it to use AI tools. Libraries such as
+**PyTorch** do it automatically; this is called **autograd** (automatic differentiation).
 
-**Backward pass (from the loss down):**
+The method was known earlier, but a 1986 paper by Rumelhart, Hinton and Williams made it the standard way to train
+neural networks.
 
-*Step 1: blame on the output score `z`.* For sigmoid + cross-entropy the local slope collapses into a tiny formula,
-the same one from lesson 1.1.7:
+## Where you'll see it
 
-```
-dL/dz = P - y = 0.0522 - 1 = -0.9478
-```
+- **Training vs inference cost:** training needs a forward and a backward pass, so it takes more compute and memory
+  than just using a model (lesson 1.1.9).
+- **"Frozen" layers in fine-tuning:** some layers skip weight updates, which saves memory (lesson 8.2.2).
+- **Deep learning libraries** (PyTorch, JAX, TensorFlow) all have autograd built in.
+- **History of AI:** backpropagation plus GPUs plus lots of data is why deep learning took off around 2012.
 
-Negative means "raising `z` would lower the loss". The model should have scored this signup higher.
+## Common confusions
 
-*Step 2: the output layer's parameters.* `z = v1·h1 + v2·h2 + c`, so each weight's local slope is the value it
-multiplied:
+- **Backpropagation is not a learning algorithm by itself.** It only computes gradients. Gradient descent does the
+  updating.
+- **The model doesn't backpropagate while you chat with it.** Using a model is a forward pass only. Weights change
+  only during training.
+- **You never do it by hand in practice.** Understanding the idea is enough; the library handles it.
 
-```
-dL/dv1 = dL/dz × h1 = -0.9478 × 0.1 = -0.0948
-dL/dv2 = dL/dz × h2 = -0.9478 × 2   = -1.8957
-dL/dc  = dL/dz × 1              = -0.9478
-```
+## Key terms
 
-`v2` gets 20× the blame of `v1`, because `h2` was 20× larger. Weights attached to quiet signals barely matter for
-this example.
-
-*Step 3: pass blame into the hidden layer.* Each hidden value's slope is the weight it was multiplied by:
-
-```
-dL/dh1 = dL/dz × v1 = -0.9478
-dL/dh2 = dL/dz × v2 = -0.9478
-```
-
-*Step 4: through the ReLUs.* A ReLU's slope is 1 if it was active (`z > 0`) and 0 if not. Both were active here
-(`z1 = 0.1`, `z2 = 2`), so the blame passes through unchanged: `dL/dz1 = dL/dz2 = -0.9478`.
-
-*Step 5: the hidden layer's parameters.* Again, each weight's slope is the input it multiplied:
-
-```
-dL/dw11 = -0.9478 × 4.9 = -4.6444     dL/dw21 = -4.6444
-dL/dw12 = -0.9478 × 6   = -5.6871     dL/dw22 = -5.6871
-dL/db1  = -0.9478 × 1   = -0.9478     dL/db2  = -0.9478
-```
-
-That's all 9 gradients, and the code example confirms each one against the numeric gradient from lesson 1.1.7. One
-gradient descent step at learning rate 0.01 moves the slow bot's `P(bot)` from 0.0522 to 0.1565.
-
-**Dead units get no blame.** For the long-form human, `[14.0, 40]`, both hidden pre-activations are negative, so both
-ReLUs output 0 and pass back 0. Only the output bias `c` gets a gradient (0.0067). If a ReLU is off for *every*
-example, its weights never change again. That's the **dead ReLU** problem.
-
-**What libraries do: autograd.** Nobody writes step 1–5 by hand for real models. PyTorch, JAX and TensorFlow record
-each operation during the forward pass as a node in a **computational graph**, and each operation type knows its own
-local slope. Calling `loss.backward()` in PyTorch walks that graph in reverse and fills in every parameter's gradient.
-You write only the forward pass.
-
-<Callout type="fact" title="The costs you inherit">
-  **Compute:** Kaplan et al. (2020) estimate a transformer's backward pass at about twice the forward pass, so a
-  training step costs about 3× a forward pass (their "6N FLOPs per training token" vs "2N" for the forward pass).
-  **Memory:** backprop needs the forward pass's intermediate values, so training has to store activations for every
-  layer. That's a big reason training needs far more memory than inference (lesson 1.1.9).
-</Callout>
-
-**Where it breaks: vanishing and exploding gradients.** Blame is a product of local slopes, one per layer. Sigmoid's
-slope is at most 0.25, so through 10 sigmoid layers the blame can shrink by `0.25^10 ≈ 0.00000095`, and early layers
-stop learning. Slopes consistently above 1 do the opposite and blow up. ReLU, careful initialization, normalization
-layers and residual connections (lesson 1.3.7) exist largely to keep this product well-behaved.
-
-## 6. Visual explanation
-
-The forward pass stores values; the backward pass sends blame the other way:
-
-```
- FORWARD  (values)
-  s=4.9 ─┐
-         ├─▶ z1=0.1 ─relu─▶ h1=0.1 ─┐
-  k=6 ───┤                          ├─▶ z=-2.9 ─▶ P=0.0522
-         └─▶ z2=2 ───relu─▶ h2=2 ───┘                │
-                                          loss = -ln(P) = 2.9536
-
- BACKWARD (blame = dL/d·)
-  w11 -4.64 ◀─┐
-  w12 -5.69 ◀─┼── z1 -0.95 ◀─ h1 -0.95 ◀─┐
-  b1  -0.95 ◀─┘                          │   v1 -0.09
-                                         ├── z -0.95 ◀── loss
-  w21 -4.64 ◀─┐                          │   v2 -1.90
-  w22 -5.69 ◀─┼── z2 -0.95 ◀─ h2 -0.95 ◀─┘   c  -0.95
-  b2  -0.95 ◀─┘
-```
-
-The chain rule, as one path through the graph:
-
-```
- dL/dw11 = dL/dz  × dz/dh1 × dh1/dz1 × dz1/dw11
-         = -0.9478 ×   v1   ×  relu'  ×    s
-         = -0.9478 ×   1    ×    1    ×   4.9   = -4.6444
-```
-
-Numeric gradient vs backprop, forward passes per gradient:
-
-```
- parameters     numeric (2 per param)    backprop
-          9                18            1 forward + 1 backward
-  6.7 billion      13.5 billion          1 forward + 1 backward
-```
-
-## 7. Connection to software engineering
-
-| Concept you know | Backprop equivalent |
+| Term | Meaning |
 |---|---|
-| Postmortem: walk back from the error through each dependency | Walk back from the loss through each layer |
-| Distributed tracing spans with timings | The forward pass's stored activations, needed for the backward pass |
-| Build-system dependency graph, processed in topological order | The computational graph, processed in reverse topological order |
-| Memoization | Each layer's blame is computed once and reused by everything below it |
-| Profiling "which function contributes most to latency" | The gradient: which parameter contributes most to the loss |
-| A unit test against a slow but obviously correct reference | Gradient checking: backprop vs numeric gradient |
-| A circuit breaker that stops sending traffic to a dead node | A dead ReLU that passes no gradient back |
+| Forward pass | Running input through the network to get an answer |
+| Backward pass | Passing the error back through the network to get gradients |
+| Backpropagation | The method that computes every weight's gradient efficiently |
+| Chain rule | The calculus rule backpropagation is built on |
+| Autograd | Library feature that computes gradients automatically |
 
-For engineers, the practical takeaways are operational: backprop is why training needs so much more memory than
-serving, why frameworks ask you to write only the forward pass, and why "NaN loss" often traces back to gradients that
-exploded somewhere in the chain.
+Next: lesson 1.1.9 separates the two phases of a model's life: training it, and using it.
 
-## 8. Code example
-
-Backprop by hand for the 2-2-1 bot net, checked against the numeric gradient, then used to train on the six signups
-from lesson 1.1.6. Run it with `node --experimental-strip-types backprop.ts` (Node 22.6+).
-
-```ts
-const relu = (z: number) => Math.max(0, z);
-const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
-
-// The hand-set 2-2-1 bot net from lesson 1.1.4, as a flat list of its 9 parameters:
-//   hidden 1: w11, w12, b1   hidden 2: w21, w22, b2   output: v1, v2, c
-const names = ['w11', 'w12', 'b1', 'w21', 'w22', 'b2', 'v1', 'v2', 'c'];
-const start = [-1, 0, 5, 0, -1, 8, 1, 1, -5];
-
-// Forward pass that keeps every intermediate value, because the backward pass needs them.
-function forward(p: number[], [s, k]: number[]) {
-  const z1 = p[0] * s + p[1] * k + p[2], h1 = relu(z1);
-  const z2 = p[3] * s + p[4] * k + p[5], h2 = relu(z2);
-  const z = p[6] * h1 + p[7] * h2 + p[8], out = sigmoid(z);
-  return { z1, h1, z2, h2, z, out };
-}
-const loss = (p: number[], x: number[], y: number) => {
-  const out = forward(p, x).out;
-  return -(y * Math.log(out) + (1 - y) * Math.log(1 - out));
-};
-
-// Backward pass: start at the loss and walk back, multiplying local slopes (the chain rule).
-function backward(p: number[], x: number[], y: number) {
-  const [s, k] = x;
-  const f = forward(p, x);
-  const dz = f.out - y;                   // blame on the output score (sigmoid + cross-entropy)
-  const dh1 = dz * p[6], dh2 = dz * p[7]; // pass it back through the output weights
-  const dz1 = f.z1 > 0 ? dh1 : 0;         // a ReLU passes blame only if it was active
-  const dz2 = f.z2 > 0 ? dh2 : 0;
-  return [dz1 * s, dz1 * k, dz1, dz2 * s, dz2 * k, dz2, dz * f.h1, dz * f.h2, dz];
-}
-
-function numericGradient(fn: (p: number[]) => number, p: number[], h = 1e-5) {
-  return p.map((_, i) => {
-    const up = [...p]; up[i] += h;
-    const down = [...p]; down[i] -= h;
-    return (fn(up) - fn(down)) / (2 * h);
-  });
-}
-
-// --- 1) One example: the slow bot from lesson 1.1.6, which the hand-set net gets badly wrong.
-const slowBot = { x: [4.9, 6], y: 1 };
-const f = forward(start, slowBot.x);
-console.log(`forward: h1=${f.h1.toFixed(1)} h2=${f.h2} z=${f.z.toFixed(1)} P(bot)=${f.out.toFixed(4)} loss=${loss(start, slowBot.x, 1).toFixed(4)}`);
-
-const grad = backward(start, slowBot.x, slowBot.y);
-const check = numericGradient((p) => loss(p, slowBot.x, slowBot.y), start);
-console.log('param  backprop  numeric');
-names.forEach((n, i) => console.log(`${n.padEnd(6)} ${grad[i].toFixed(4).padStart(8)} ${check[i].toFixed(4).padStart(8)}`));
-
-const stepped = start.map((v, i) => v - 0.01 * grad[i]);
-console.log(`one step (lr 0.01): P(bot) ${f.out.toFixed(4)} -> ${forward(stepped, slowBot.x).out.toFixed(4)}`);
-
-// --- 2) Dead ReLUs: a long-form human switches both hidden units off, so they get no blame.
-console.log('long-form human gradient:', backward(start, [14.0, 40], 0).map((g) => +g.toFixed(4)).join(', '));
-
-// --- 3) Train on the six signups from lesson 1.1.6 with backprop + gradient descent.
-const signups = [
-  { x: [2.0, 1], y: 1 }, { x: [4.4, 2], y: 1 }, { x: [3.8, 12], y: 0 }, { x: [14.0, 40], y: 0 },
-  { x: [4.9, 6], y: 1 }, { x: [4.5, 3], y: 0 },
-];
-const avgLoss = (p: number[]) => signups.reduce((a, e) => a + loss(p, e.x, e.y), 0) / signups.length;
-let params = start;
-for (let step = 0; step <= 2000; step++) {
-  if (step % 500 === 0) {
-    const errors = signups.filter((e) => (forward(params, e.x).out > 0.5 ? 1 : 0) !== e.y).length;
-    console.log(`step ${String(step).padStart(4)}  loss=${avgLoss(params).toFixed(4)}  errors=${errors}`);
-  }
-  const g = signups.map((e) => backward(params, e.x, e.y));
-  params = params.map((v, i) => v - 0.01 * g.reduce((a, gi) => a + gi[i], 0) / signups.length);
-}
-console.log('trained:', params.map((v) => v.toFixed(2)).join(', '));
-```
-
-Output:
-
-```
-forward: h1=0.1 h2=2 z=-2.9 P(bot)=0.0522 loss=2.9536
-param  backprop  numeric
-w11     -4.6444  -4.6444
-w12     -5.6871  -5.6871
-b1      -0.9478  -0.9478
-w21     -4.6444  -4.6444
-w22     -5.6871  -5.6871
-b2      -0.9478  -0.9478
-v1      -0.0948  -0.0948
-v2      -1.8957  -1.8957
-c       -0.9478  -0.9478
-one step (lr 0.01): P(bot) 0.0522 -> 0.1565
-long-form human gradient: 0, 0, 0, 0, 0, 0, 0, 0, 0.0067
-step    0  loss=0.6912  errors=2
-step  500  loss=0.4302  errors=2
-step 1000  loss=0.4249  errors=2
-step 1500  loss=0.4233  errors=2
-step 2000  loss=0.4228  errors=2
-trained: -0.75, 0.14, 4.98, 0.31, -0.64, 7.99, 0.59, 0.65, -5.05
-```
-
-What to take from it:
-
-- **Backprop and the numeric gradient agree on all 9 parameters.** Backprop used one forward and one backward pass;
-  the numeric check used 18 forward passes.
-- **Dead ReLUs block blame.** For the long-form human, only the output bias `c` gets a gradient.
-- **Correct gradients don't guarantee a perfect model.** Training cuts the average loss from 0.6912 to 0.4228, but
-  the two errors remain: the slow bot `[4.9, 6]` and the fast human `[4.5, 3]` have very similar inputs and opposite
-  labels. Backprop tells the optimizer where to go. It can't add features or data that aren't there.
-
-## 9. Real-world example
-
-**Every training step of an LLM runs backprop through the whole transformer.** A step does a forward pass over a
-batch of text, computes next-token cross-entropy, then one backward pass fills in gradients for every weight in every
-attention and feed-forward layer, and the optimizer updates them.
-
-What that means in practice:
-
-- **Code:** in PyTorch, a training loop is essentially `loss = model(batch)`, `loss.backward()`,
-  `optimizer.step()`, `optimizer.zero_grad()`. The autograd engine handles the chain rule.
-- **Memory:** stored activations grow with batch size, sequence length and depth. When a fine-tuning job runs out of
-  GPU memory, **activation checkpointing** (also called gradient checkpointing) trades compute for memory: it keeps
-  only some activations and recomputes the rest during the backward pass.
-- **Stability:** teams watch the **gradient norm** alongside the loss. A spike often comes just before a loss spike,
-  and **gradient clipping** caps the norm so one bad batch can't throw the weights far off.
-
-<Callout type="practice">
-  When a custom layer or loss behaves strangely, run a gradient check: compare autograd's gradient to a numeric one
-  on a tiny input in float64. It's the same test as this lesson's code example, and it catches sign errors,
-  detached tensors and missing terms quickly.
-</Callout>
-
-## 10. Common mistakes
-
-- **Thinking backprop is the learning algorithm.** Backprop only computes gradients. Gradient descent, or Adam, uses
-  them to update weights.
-- **Not storing the forward values.** The backward pass needs `h1`, `h2`, `z1` and `z2`. Recomputing them wrongly, or
-  modifying them in place, silently corrupts gradients.
-- **Forgetting to reset gradients.** Autograd libraries *accumulate* gradients across `backward()` calls. Forgetting
-  `zero_grad()` in PyTorch means each step uses the sum of all previous gradients.
-- **Breaking the graph.** Converting a tensor to a plain number or array mid-model stops gradients flowing back
-  through that point. The loss still decreases a bit, so the bug hides.
-- **Using sigmoid or tanh in many hidden layers.** Their small slopes multiply into vanishing gradients. Use ReLU-like
-  activations in hidden layers.
-- **Initializing every weight to the same value.** Units that start identical get identical gradients and stay
-  identical forever (see the exercise).
-
-## 11. Limitations
-
-- **It gives the local slope, not the best destination.** Backprop can be perfectly correct while training still
-  stalls, as the two remaining errors in the code example show.
-- **Everything must be differentiable.** Discrete choices like sampling a token, `argmax`, or calling an API don't
-  have useful slopes, so they need workarounds or different training methods.
-- **Memory-hungry.** Storing activations for every layer is a big part of why training needs much more GPU memory
-  than inference.
-- **Products of many slopes are fragile.** Deep networks need careful architecture choices to avoid vanishing or
-  exploding gradients.
-- **It's sequential through depth.** The backward pass for layer 3 waits on layer 4, which limits how training can be
-  parallelized across layers.
-
-## 12. When to use it
-
-- To train or fine-tune any neural network. Your framework's autograd does it for you.
-- As a **debugging model** for training problems: dead units, vanishing gradients, NaNs and out-of-memory errors all
-  make sense once you picture blame flowing back through stored activations.
-- To **gradient-check** custom layers or losses against a numeric gradient.
-- To understand model **attributions**: "which input features most affect this output" methods often reuse gradients
-  with respect to inputs instead of weights.
-
-## 13. When NOT to use it
-
-- **By hand, beyond learning.** Real models use autograd. Hand-written backward passes are for understanding and for
-  rare custom kernels.
-- **For non-differentiable objectives.** Tuning prompts, retrieval settings or business rules against an eval score
-  needs search or experimentation, not gradients.
-- **When you only call models through an API.** You'll never run backprop yourself. What matters is its consequences
-  for cost and for why the model doesn't learn from your requests (lesson 1.1.9).
-- **For tiny models with a closed-form gradient.** Logistic regression's `(p - y) × input` is simpler to write
-  directly.
-
-## 14. Interview explanation (30 seconds)
-
-> Backpropagation is how neural networks compute gradients efficiently. You run the forward pass and keep the
-> intermediate values, then walk backwards from the loss applying the chain rule: each operation passes blame to its
-> inputs, scaled by its local derivative. One backward pass gives the gradient for every parameter at roughly twice
-> the cost of the forward pass, instead of one extra pass per parameter. Frameworks do this automatically with
-> autograd; the optimizer then uses those gradients to update the weights.
-
-## 15. Deep interview explanation (2–5 minutes)
-
-Frame the problem. Gradient descent needs the partial derivative of the loss with respect to every parameter. Finite
-differences cost two forward passes per parameter, which is hopeless at millions or billions of parameters.
-
-Describe the network as a computational graph of simple operations: matrix multiplies, additions, activations and a
-loss. Each operation knows its local derivative. The chain rule says the derivative of the loss with respect to any
-node is the sum, over the paths from that node to the loss, of the products of local derivatives along each path.
-
-Explain why reverse mode wins. There's one scalar output (the loss) and many inputs (the parameters). Going backwards
-from the loss computes the adjoint `dL/dnode` for every node in one sweep, reusing each layer's result for the layer
-below, so the cost is a small constant multiple of the forward pass. Forward-mode differentiation would need a sweep
-per parameter.
-
-Walk a tiny example. For a sigmoid output with cross-entropy, `dL/dz = p - y`. A weight's gradient is the upstream
-gradient times the input it multiplied. A ReLU passes the gradient through when active and blocks it when not. Mention
-checking the result against finite differences.
-
-Cover the costs: activations must be stored, so memory grows with batch size, sequence length and depth; activation
-checkpointing trades recomputation for memory. Cover pathologies: vanishing gradients from small repeated slopes like
-sigmoid's, exploding gradients from large ones, and dead ReLUs. Mitigations include ReLU-family activations,
-initialization schemes, normalization, residual connections and gradient clipping.
-
-Close with practice: frameworks like PyTorch and JAX implement reverse-mode autodiff, so you write the forward pass.
-The usual bugs are forgetting to zero gradients, detaching tensors and in-place operations that overwrite saved
-values.
-
-## 16. Hands-on exercise
-
-Run the code example, then:
-
-1. **Backprop by hand.** For the autofill human, `[3.8, 12]` with label 0, compute the forward pass and all 9
-   gradients on paper using the hand-set weights. Check your answer with `backward(start, [3.8, 12], 0)`.
-2. **The symmetry trap.** Replace `start` with `[0.5, 0.5, 1, 0.5, 0.5, 1, 1, 1, -5]`, where both hidden units are
-   identical, and print the gradient for the slow bot. What do you notice about hidden 1's and hidden 2's gradients,
-   and what does that mean for training?
-3. **Break the sign.** Change `dz = f.out - y` to `dz = y - f.out` and rerun. Which check tells you something is
-   wrong?
-
-<Answer label="Answers from running it">
-  1. `z1 = -3.8 + 5 = 1.2`, so `h1 = 1.2`. `z2 = -12 + 8 = -4`, so `h2 = 0` (dead). `z = 1.2 + 0 - 5 = -3.8` and
-     `P(bot) = 0.0219`. Then `dL/dz = 0.0219 - 0 = 0.0219`. Hidden 1 is active, so it gets `0.0219 × 3.8 = 0.0831`
-     for `w11`, `0.0219 × 12 = 0.2626` for `w12` and `0.0219` for `b1`. Hidden 2 is off, so `w21`, `w22` and `b2` get
-     0. At the output, `v1` gets `0.0219 × 1.2 = 0.0263`, `v2` gets 0 because `h2 = 0`, and `c` gets 0.0219. The
-     positive signs mean gradient descent will lower these values, pushing `P(bot)` further down for this human.
-  2. The gradient is `[-0.0018, -0.0022, -0.0004]` for both hidden units, and `-0.0024` for both `v1` and `v2`. The
-     two units get exactly the same updates, so they stay copies of each other forever and the network effectively
-     has one hidden unit. That's why real networks start from small *random* weights.
-  3. The gradient check: every backprop value flips sign while the numeric column stays the same. The rest of the
-     output confirms it. One step moves the slow bot's `P(bot)` *down*, from 0.0522 to 0.0262, and training blows up:
-     by step 500 the loss is `NaN`, the errors go from 2 to 3 and some weights are in the quintillions. Compare the
-     gradients before you trust a training run.
-</Answer>
-
-## 17. Challenge
-
-Build a **tiny autograd engine**, so the backward pass writes itself.
-
-1. Create a `Value` class holding `data`, `grad`, its parent `Value`s and a `backwardStep` function.
-2. Implement `add`, `mul` and `relu`, each returning a new `Value` whose `backwardStep` adds to its parents' `grad`
-   using the local slope. Also add a fused `sigmoidBce(y)` whose local slope is `p - y`.
-3. Implement `backward()`: sort the graph topologically, set the loss's `grad` to 1, and run every node's
-   `backwardStep` in reverse order.
-4. Rebuild the 2-2-1 bot net with `Value`s, compute the slow bot's loss, call `backward()`, and confirm you get the
-   same 9 gradients as the table in section 8.
-5. Bonus: explain why gradients must be *added* (`+=`) rather than assigned. Hint: in a network where one value feeds
-   two later operations, what would `=` lose?
-
-<Answer label="Hints">
-  Node's type stripping doesn't support constructor parameter properties like `constructor(public data: number)`,
-  so declare the fields separately. For `mul`, each parent's local slope is the *other* parent's `data`. For `relu`,
-  it's 1 if the input was positive, else 0. Our version of this engine is about 45 lines and prints
-  `loss=2.9536` and `w11=-4.6444 w12=-5.6871 b1=-0.9478 ... v2=-1.8957 c=-0.9478`, matching section 8. On the bonus:
-  a value used in two places receives blame from both, and `=` would keep only the last one. That's the "sum over
-  paths" in the chain rule.
-</Answer>
-
-## 18. Sources and acknowledgements
+## Sources and acknowledgements
 
 This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

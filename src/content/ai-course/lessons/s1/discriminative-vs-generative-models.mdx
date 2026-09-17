@@ -1,9 +1,9 @@
 ---
 topic: '1.1.3'
 date: 2026-09-17
-summary: Discriminative models learn the boundary between answers; generative models learn what the data itself looks like — which is why only one of them can write, and why LLMs are both.
-estimatedMinutes: 30
-tags: [Foundations, Machine Learning, Probability]
+summary: A discriminative model tells things apart by picking a label, like "spam" or "not spam"; a generative model learns what the data looks like well enough to create new examples, like writing a new email.
+estimatedMinutes: 8
+tags: [Foundations, Machine Learning]
 prerequisites: ['1.1.1', '1.1.2']
 references:
   - title: 'Background: What is a Generative Model?'
@@ -11,481 +11,93 @@ references:
     url: https://developers.google.com/machine-learning/gan/generative
     tier: must
     level: Beginner
-    why: A short, clear definition of both model types in plain language and in probability notation, with a visual of boundaries vs distributions.
+    why: A short, plain explanation of generative versus discriminative models with simple examples.
   - title: 'How do Transformers work? (LLM Course, Chapter 1)'
     source: Hugging Face
     url: https://huggingface.co/learn/llm-course/chapter1/4
     tier: should
     level: Beginner
-    why: Shows how language models are trained to predict the next word — the generative objective this lesson builds toward.
+    why: Shows how modern language models are trained to generate text, and how some models classify instead.
   - title: 'On Discriminative vs. Generative Classifiers: A comparison of logistic regression and naive Bayes'
     source: Andrew Y. Ng & Michael I. Jordan, NeurIPS 2001
     url: https://papers.nips.cc/paper/2020-on-discriminative-vs-generative-classifiers-a-comparison-of-logistic-regression-and-naive-bayes
     tier: optional
     level: Intermediate
-    why: The classic result that neither type always wins — generative classifiers often do better with little data, discriminative ones with lots of it.
-  - title: CS229 Lecture Notes (Generative Learning Algorithms)
-    source: Stanford University
-    url: https://cs229.stanford.edu/main_notes.pdf
-    tier: optional
-    level: Advanced
-    why: The rigorous treatment of generative classifiers, Bayes' rule and Naive Bayes, if you want the math behind the intuition here.
-  - title: 'Mulberry32 PRNG'
-    source: Tommy Ettinger (GitHub gist)
-    url: https://gist.github.com/tommyettinger/46a874533244883189143505d203312c
-    tier: optional
-    level: Advanced
-    why: The original public-domain source of the mulberry32 seeded random number generator used in this lesson's code.
-  - title: 'Generative Adversarial Nets'
-    source: Goodfellow et al., NeurIPS (2014)
-    url: https://arxiv.org/abs/1406.2661
-    tier: optional
-    level: Advanced
-    why: Introduced the counterfeiters-vs-police analogy for generative and discriminative models, which this lesson's forger and border-guard mental model adapts.
+    why: The classic paper comparing the two approaches, for readers who want the theory.
 ---
 
-import Callout from '../../../../components/course/Callout.astro';
-import Answer from '../../../../components/course/Answer.astro';
+## Why this matters
 
-## 1. Why does this exist?
+"Generative AI" is everywhere, but the word "generative" has a specific meaning. Most AI before ChatGPT was the
+other kind: models that sort things into categories. Knowing both kinds helps you pick the right tool for a task.
 
-In lesson 1.1.2 you learned that ML searches a *family of functions* for one that fits the data. That leaves the
-most important design question open: **what should the function learn?**
+By the end of this lesson, you'll be able to tell whether a task needs a model that picks or a model that creates.
 
-There are two fundamentally different answers:
+## The idea
 
-- Learn **how to tell answers apart**: given a ticket, is it a bug or a feature request?
-- Learn **what the data itself looks like**: what do bug reports look like, and what do feature requests look like?
+A **discriminative model** answers "which one is this?" It looks at an input and picks a label. Spam or not spam.
+Cat or dog. Fraud or safe.
 
-The first gives you a *discriminative* model and the second a *generative* one. The distinction matters because it
-decides what a model **can do at all**. Only one kind can write new text, and that's the kind that powers every LLM
-in this course.
+A **generative model** learns what the data itself looks like. Because it knows that, it can create new examples
+that look real: a new sentence, a new image, a new song.
 
-## 2. What problem does it solve?
-
-It gives you a precise way to reason about capabilities and trade-offs:
-
-- **Can it create?** Generation requires a model of the data, so it needs a generative model.
-- **Can it notice weird inputs?** Knowing "this doesn't look like anything I've seen" also requires a model of the data.
-- **How much data and compute does it need?** Modeling everything about the data is harder than drawing a boundary.
-- **Which component goes where?** Real AI systems mix both: generative LLMs alongside discriminative classifiers,
-  rerankers and safety filters.
-
-## 3. Simple explanation
-
-Imagine two people learning to sort support tickets into **bug** and **feature request**.
-
-**The discriminative learner** only learns *what separates* the two piles. They notice "crashes", "error" and "broken"
-mean bug, and "please add" and "option" mean feature. Show them a ticket and they answer instantly. Ask them to *write*
-a realistic bug report and they can't; they never learned what a whole bug report looks like, only the clues that
-distinguish it.
-
-**The generative learner** studies *how each kind of ticket is written*: which words appear, how often, in what
-patterns. They can sort a ticket by asking "which kind of writer most likely produced this?" They can also
-**write a new, plausible ticket**, and they can say "this doesn't look like any ticket at all" when someone pastes spam.
-
-In probability terms, with `x` as the input and `y` as the label:
-
-- A **discriminative** model learns `P(y | x)`: *given this input, how likely is each label?*
-- A **generative** model learns how the data is distributed: `P(x | y)` and `P(y)` for labeled data (together,
-  `P(x, y)`), or just `P(x)` when there are no labels.
-
-<Callout type="fact">
-  The bar `|` means "given". `P(bug | text)` reads as "the probability it's a bug, given this text".
-  That's the only notation this lesson needs.
-</Callout>
-
-## 4. Mental model
-
-**Discriminative = a border guard. Generative = a forger.**
-
-- The **border guard** knows exactly where the border is and checks which side you're on. They don't need to know
-  what life is like in either country.
-- The **forger** has studied the real thing so thoroughly that they can produce convincing new copies. They can also
-  tell when something looks fake, and they can sort items by asking "which original does this resemble?"
-
-The analogy adapts the counterfeiters-vs-police picture from Goodfellow et al.'s 2014 GAN paper, which pits a
-generative model against a discriminative one. Forging is much harder than guarding. That's why generative models typically need far more data and compute, and
-why LLMs are so large.
-
-## 5. How it works internally
-
-**Discriminative models** go straight at the decision. Logistic regression, most neural classifiers, and the
-perceptron in this lesson's code all learn weights that turn an input into a score for each label. Training adjusts
-the weights *only* to push correct labels up and wrong labels down. Everything about the input that doesn't help
-separate the labels is ignored.
-
-**Generative models** learn how the data is produced. A classic example is **Naive Bayes** for text:
-
-1. For each label, **count** how often each word appears in that label's examples. That estimates
-   `P(word | label)`.
-2. Estimate `P(label)` from how common each label is.
-3. **To classify**, use Bayes' rule: pick the label under which the input text is most probable, weighted by how
-   common the label is. You're asking "which story best explains this text?"
-4. **To generate**, pick a label and *sample* words from its distribution.
-5. **To detect outliers**, compute how probable the input is under *any* label. Low probability means unusual.
-
-Naive Bayes is "naive" because it treats words as independent. It ignores word order, so what it generates is word
-salad. Making generation *good* means modeling how each piece depends on the pieces before it.
-
-**That's exactly what a language model does.** An LLM models the probability of text one token at a time:
-
-```
-P("the app crashes") = P("the")
-                     × P("app" | "the")
-                     × P("crashes" | "the app")
+```text
+Discriminative:  email  →  "spam"        (picks a label)
+Generative:      "Write a thank-you email" → a new email
 ```
 
-Each factor is a **prediction over the entire vocabulary** (often 100,000+ tokens), conditioned on everything so far.
-Chain those predictions together, sampling one token at a time, and the model writes (lessons 1.4.3–1.4.4).
+## A real-life example
 
-<Callout type="note" title="Where the line blurs">
-  Look closely at each step of an LLM. "Given the previous tokens, which token comes next?" has the *shape* of a
-  classification over a huge label set. The model as a whole is generative because those steps chain into a
-  probability for entire texts that you can sample from. The categories describe **what is being modeled**, not
-  which architecture is used, and one model is often used both ways.
-</Callout>
+Think of two people at an art museum.
 
-## 6. Visual explanation
+The first is a **security guard trained to spot fakes**. Show them a painting and they say "real" or "fake". They
+don't need to know how to paint. They only need to notice the differences. That's a discriminative model.
 
-What each type learns, on 2D data (o = bug, x = feature):
+The second is an **art student who has studied thousands of paintings** in a style. They can paint a brand-new
+picture in that style. To do that, they had to learn what the style really looks like. That's a generative model.
 
-```
-DISCRIMINATIVE: a boundary           GENERATIVE: each class's shape
+In real products: your **bank's fraud check** is discriminative. It decides "risky" or "normal" for each payment.
+**Image generators like Midjourney** and **chatbots like Claude** are generative. They create new images and text.
 
-  o  o    |     x                     .-----.
-    o  o  |  x    x                  ( o  o  )        .-----.
-  o    o  |    x                     ( o o o )       ( x   x )
-     o    |  x   x                    '-----'        (  x x  )
-          |                                          ( x   x )
-  "which side?"                                       '-----'
-                                     "where does data live?"
-```
+## How it works
 
-What you can ask each one:
+1. A discriminative model learns the **boundary** between categories. It only cares about what separates spam from
+   normal email.
+2. A generative model learns the **patterns of the data** itself: which words tend to follow which, what faces
+   usually look like.
+3. Once a generative model knows those patterns, it can sample new data, one piece at a time. An LLM picks one word
+   after another (lesson 1.4.2).
+4. Generative models can also classify. You can ask an LLM "Is this email spam?" and it will answer. That's often
+   easier to set up, but slower and more expensive than a small discriminative model.
 
-```
-                          DISCRIMINATIVE   GENERATIVE
-Which label is this?           yes             yes (Bayes' rule)
-Write a new example?           no              yes (sample)
-Is this input unusual?         no*             yes (low probability)
+## Where you'll see it
 
-* it still returns a label, often confidently
-```
+- **Classification tasks** (tagging tickets, detecting fraud, filtering content) often use small discriminative
+  models, because they are cheap and fast.
+- **Creation tasks** (writing, summarizing, drawing, coding) need generative models.
+- **Teams now often prototype with an LLM** for classification, then switch to a smaller model if the volume grows.
+- **"GenAI" in product names** means the generative kind.
 
-The token-by-token loop that makes an LLM generative:
+## Common confusions
 
-```
-"the app"              ─▶ model ─▶ P(next) ─▶ "crashes"
-"the app crashes"      ─▶ model ─▶ P(next) ─▶ "when"
-"the app crashes when" ─▶ ...  (repeat until done)
-```
+- **Generative doesn't mean smarter.** For a narrow yes/no task, a small discriminative model can be more accurate
+  and much cheaper.
+- **An LLM answering "spam" is still a generative model.** It generates the word "spam". The task is
+  classification, but the model type is generative.
+- **Generative models don't copy their training data.** They learn patterns and produce new combinations, though
+  they can sometimes repeat things they saw often.
 
-## 7. Connection to software engineering
+## Key terms
 
-| Engineering question | Discriminative | Generative |
-|---|---|---|
-| Output type | A label, score or ranking | New content (text, code, images) |
-| Typical API | `classify(text) → { label, score }` | `generate(prompt) → stream of tokens` |
-| Output validation | Easy: check against a fixed label set | Hard: open-ended output needs schemas and guardrails |
-| Latency and cost | Usually small, fast and cheap | Usually large; latency grows with output length |
-| Testing | Accuracy, precision and recall on labeled data | Evals, rubrics, LLM-as-judge (Season 6) |
-| Unknown inputs | Confidently maps them to *some* label | Can flag them as unlikely, or hallucinate |
+| Term | Meaning |
+|---|---|
+| Discriminative model | A model that picks a label for an input |
+| Generative model | A model that learns the data well enough to create new examples |
+| Classification | The task of sorting inputs into categories |
+| Sampling | Producing new output from what a generative model learned |
 
-As a frontend or backend engineer you'll wire both into the same request path. A typical AI feature is a
-**pipeline of discriminative gates around a generative core**:
+Next: lesson 1.1.4 opens up the most common kind of model behind both types, the neural network.
 
-```
-user input
-  → safety / intent classifier   (discriminative: small, fast)
-  → retrieval + reranker          (discriminative ranking)
-  → LLM writes the answer         (generative)
-  → output checks / moderation    (discriminative)
-  → UI
-```
-
-The engineering heuristic follows from that: **use generation only where you need open-ended output.** For a fixed
-set of answers, a discriminative component, or a generative model forced to pick from that set, is cheaper and much
-easier to validate.
-
-## 8. Code example
-
-Both model types trained on the same eight support tickets. The generative one is Naive Bayes built from counts;
-the discriminative one is a perceptron that only learns word weights. Run it with
-`node --experimental-strip-types tickets.ts` (Node 22.6+).
-
-```ts
-type Label = 'bug' | 'feature';
-type Ticket = { text: string; label: Label };
-
-const tickets: Ticket[] = [
-  { text: 'app crashes when I click save', label: 'bug' },
-  { text: 'error on login page after update', label: 'bug' },
-  { text: 'save button broken on mobile', label: 'bug' },
-  { text: 'page crashes with error on upload', label: 'bug' },
-  { text: 'please add dark mode', label: 'feature' },
-  { text: 'add export to csv option', label: 'feature' },
-  { text: 'would love a dark theme option', label: 'feature' },
-  { text: 'please add keyboard shortcuts', label: 'feature' },
-];
-
-const tokenize = (text: string) => text.toLowerCase().split(/\W+/).filter(Boolean);
-const labels: Label[] = ['bug', 'feature'];
-const vocab = [...new Set(tickets.flatMap((t) => tokenize(t.text)))];
-
-// ─── Generative: model what each class's text LOOKS LIKE ───────────────
-// For each label, estimate P(word | label) by counting (+1 smoothing).
-function trainGenerative(data: Ticket[]) {
-  const wordProbs = {} as Record<Label, Map<string, number>>;
-  const unseenProb = {} as Record<Label, number>;
-  const prior = {} as Record<Label, number>;
-  for (const label of labels) {
-    const words = data.filter((t) => t.label === label).flatMap((t) => tokenize(t.text));
-    const counts = new Map(vocab.map((w) => [w, 1]));
-    words.forEach((w) => counts.set(w, (counts.get(w) ?? 1) + 1));
-    const total = words.length + vocab.length + 1; // +1 reserves mass for unseen words
-    wordProbs[label] = new Map([...counts].map(([w, c]) => [w, c / total]));
-    unseenProb[label] = 1 / total;
-    prior[label] = data.filter((t) => t.label === label).length / data.length;
-  }
-  return { wordProbs, unseenProb, prior };
-}
-
-type Generative = ReturnType<typeof trainGenerative>;
-
-// How likely is this text under a label's "story" of how tickets are written?
-const logLikelihood = (m: Generative, text: string, label: Label) =>
-  tokenize(text).reduce((sum, w) => sum + Math.log(m.wordProbs[label].get(w) ?? m.unseenProb[label]), 0);
-
-// Use 1: classify with Bayes' rule — pick the label that best explains the text.
-const classifyGenerative = (m: Generative, text: string): Label => {
-  const score = (label: Label) => Math.log(m.prior[label]) + logLikelihood(m, text, label);
-  return score('bug') > score('feature') ? 'bug' : 'feature';
-};
-
-// Use 2: GENERATE new text by sampling words from a label's distribution.
-// mulberry32: a public-domain seeded random number generator by Tommy Ettinger.
-function mulberry32(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function generate(m: Generative, label: Label, length: number, random: () => number) {
-  const entries = [...m.wordProbs[label]];
-  return Array.from({ length }, () => {
-    let r = random();
-    for (const [word, p] of entries) if ((r -= p) <= 0) return word;
-    return entries[entries.length - 1][0];
-  }).join(' ');
-}
-
-// ─── Discriminative: learn only the BOUNDARY between labels ────────────
-// A perceptron: one weight per word; positive score means "bug".
-function trainDiscriminative(data: Ticket[], epochs = 20) {
-  const weights = new Map<string, number>();
-  const score = (text: string) => tokenize(text).reduce((s, w) => s + (weights.get(w) ?? 0), 0);
-  for (let e = 0; e < epochs; e++) {
-    for (const { text, label } of data) {
-      const target = label === 'bug' ? 1 : -1;
-      if (Math.sign(score(text)) !== target) {
-        tokenize(text).forEach((w) => weights.set(w, (weights.get(w) ?? 0) + target));
-      }
-    }
-  }
-  return { weights, classify: (text: string): Label => (score(text) > 0 ? 'bug' : 'feature') };
-}
-
-const gen = trainGenerative(tickets);
-const disc = trainDiscriminative(tickets);
-
-for (const text of ['app crashes on upload', 'please add csv export', 'the save page shows an error']) {
-  console.log(`"${text}" → generative: ${classifyGenerative(gen, text)}, discriminative: ${disc.classify(text)}`);
-}
-
-const random = mulberry32(42);
-console.log('generated bug:    ', generate(gen, 'bug', 6, random));
-console.log('generated feature:', generate(gen, 'feature', 6, random));
-
-// Use 3: "does this even look like a ticket?" — only the generative model can say.
-for (const text of ['save crashes with error', 'buy cheap watches now']) {
-  const best = Math.max(...labels.map((l) => logLikelihood(gen, text, l) / tokenize(text).length));
-  console.log(`typicality of "${text}": ${best.toFixed(2)}`);
-}
-console.log('discriminative still answers:', disc.classify('buy cheap watches now'));
-```
-
-Output:
-
-```
-"app crashes on upload" → generative: bug, discriminative: bug
-"please add csv export" → generative: feature, discriminative: feature
-"the save page shows an error" → generative: bug, discriminative: bug
-generated bug:     broken page csv with click update
-generated feature: broken to theme dark button theme
-typicality of "save crashes with error": -3.01
-typicality of "buy cheap watches now": -3.93
-discriminative still answers: feature
-```
-
-What to take from it:
-
-- **Both classify correctly.** For sorting tickets, you didn't need a generative model.
-- **Only the generative model can write, and it writes badly.** It knows *which* words bugs use but nothing about
-  *order*, so it produces word salad. Smoothing even gives "broken" a small chance of appearing in a feature request.
-  Modeling order is the leap from Naive Bayes to language models.
-- **Only the generative model can say "this is unusual".** The spam text scores lower on typicality (−3.93 vs −3.01
-  per word). With 8 examples that gap is small and noisy, but the capability exists. The discriminative model
-  confidently calls spam a "feature request", because a label is all it can return.
-
-## 9. Real-world example
-
-A **RAG-based support assistant** (built in Season 4) uses both types in a single request:
-
-1. A **discriminative intent/safety classifier** decides whether the message is in scope and safe. It's small, fast
-   and runs on every request.
-2. A **discriminative reranker** scores which retrieved help articles are most relevant to the question.
-3. A **generative LLM** writes the answer, grounded in those articles.
-4. A **discriminative check** (a moderation model, or an LLM prompted to return only `pass`/`fail`) screens the
-   output before it reaches the UI.
-
-Even the "generative" system is mostly discriminative components by count. The generative model is the expensive
-core, used only for the step that truly needs open-ended output.
-
-<Callout type="practice">
-  When a step's output is one of a known set of values (a category, yes/no, a score), prefer a discriminative
-  component, or constrain the generative model to that set with structured outputs (lesson 2.3). Reserve free-form
-  generation for steps whose output really is open-ended.
-</Callout>
-
-## 10. Common mistakes
-
-- **"Generative means LLM, discriminative means old ML."** Both are *modeling approaches*. Naive Bayes is a
-  generative model from the 1960s, and many modern neural networks are discriminative.
-- **Using free-form generation for a closed-set task**, then parsing "Sure! This looks like a bug 🙂" with regex.
-  Constrain the output instead.
-- **Trusting a discriminative score as "confidence" on unfamiliar inputs.** Classifiers often give high scores to
-  inputs unlike anything in training. Out-of-distribution detection needs separate handling.
-- **Assuming generative models "know" things because they sound fluent.** Fluency shows the model learned what text
-  *looks like*, not that its claims are true (lesson 1.4.8).
-- **Thinking an LLM can't be a classifier.** Constrained to a label set, LLMs are strong zero-shot classifiers. The
-  trade-off is cost and latency, not capability.
-
-## 11. Limitations
-
-- **The line blurs in practice.** LLMs are generative models built from next-token prediction steps and used
-  discriminatively all the time. Embedding models and rerankers don't fit neatly into either textbook box. Use the
-  distinction to reason about *capabilities*, not as a strict taxonomy.
-- **Generative models are harder to train well.** Modeling the full data distribution needs more data, more
-  parameters and more compute than drawing a boundary.
-- **Discriminative models can't produce, and can't recognize, what they never modeled.** They give no reliable
-  "I don't know" on unusual inputs.
-- **Generative "unusualness" scores are imperfect.** Probability also depends on length, common words and
-  tokenization, so raw likelihood is a noisy outlier detector.
-
-## 12. When to use it
-
-Reach for a **discriminative** approach when:
-
-- the output is a label, score or ranking from a known set
-- latency, cost and easy validation matter (moderation, routing, spam, reranking)
-- you have labeled data for the task, or a model trained for exactly that task
-
-Reach for a **generative** approach when:
-
-- the output is open-ended: answers, summaries, code, rewrites, drafts
-- you need one model to handle many tasks without task-specific training data
-- you need synthetic data, or a sense of whether an input is typical
-
-## 13. When NOT to use it
-
-- **Don't use a generative model where a small classifier would do,** especially on hot paths like per-keystroke
-  suggestions or moderation for every message, unless you've measured that the quality gain is worth the cost and latency.
-- **Don't use a discriminative model when you need output that doesn't exist yet.** No classifier will draft an email.
-- **Don't argue about which box a model belongs in.** Ask what it models, what it outputs, and how you'll validate it.
-
-## 14. Interview explanation (30 seconds)
-
-> A discriminative model learns the probability of a label given an input, P(y given x): it learns the boundary
-> between answers, like a spam classifier. A generative model learns how the data itself is distributed, P(x) or
-> P(x and y), so it can create new examples and judge how typical an input is. It can also classify using Bayes' rule.
-> LLMs are generative: they model text as a chain of next-token predictions and sample from it. In practice, AI
-> systems combine both: generative models for open-ended output, discriminative ones for fast classification,
-> reranking and safety checks.
-
-## 15. Deep interview explanation (2–5 minutes)
-
-Start with what each one models. With input `x` and label `y`, a **discriminative** model learns `P(y | x)` directly.
-It learns a decision boundary: logistic regression, most neural classifiers, a cross-encoder reranker. A
-**generative** model learns how the data is produced: `P(x | y)` and `P(y)`, which combine to `P(x, y)`, or just
-`P(x)` without labels.
-
-Then explain the capability difference. Because a generative model captures the data distribution, it can do three
-things: **sample** new data, **score** how likely an input is (useful for outlier detection), and **classify** by
-applying Bayes' rule to pick the label that best explains the input. A discriminative model can only classify. It
-ignores everything about the input that doesn't help separate labels. That makes it more data-efficient for that one
-job, and it often gets better accuracy with enough data. Ng and Jordan's 2001 comparison of Naive Bayes and logistic
-regression is the classic reference: the generative model often wins with little data, the discriminative model
-with more.
-
-Next, connect to LLMs. A language model is generative: it factors the probability of a text into a product of
-next-token probabilities, each conditioned on all previous tokens. Each step predicts over the full vocabulary,
-which looks like a classification step, but chaining those steps gives a probability for whole sequences that you
-sample token by token. That's why Naive Bayes produces word salad while an LLM produces coherent text. Naive Bayes
-assumes independence; a transformer models the dependencies.
-
-Finish with the engineering consequences. Generative models are larger, slower, more expensive and produce
-open-ended output that's hard to validate. Discriminative models are small, fast and easy to test against a fixed
-label set, but confidently wrong on unfamiliar inputs. Production AI systems combine them: a safety or intent
-classifier and a reranker around a generative LLM, plus an output check. For closed-set tasks you either use a
-discriminative model or constrain the LLM's output to the allowed labels.
-
-## 16. Hands-on exercise
-
-**Part A: run and poke.** Run the code example, then:
-
-1. Change the seed passed to `mulberry32` and generate five samples per label. Do the samples ever look like real
-   tickets?
-2. Add three more tickets per label, then check which classifications and typicality scores change.
-3. Find a new ticket that the two models *disagree* on. What does that tell you about what each one learned?
-
-**Part B: make generation care about order.** Build a **bigram model**: estimate `P(next word | previous word)` by
-counting adjacent word pairs across all tickets, with special `START` and `END` tokens. Then generate by starting
-at `START` and sampling the next word until you hit `END`.
-
-<Answer label="What you should notice">
-  The bigram output reads much more like real tickets. It even produces new combinations such as "save button broken
-  on upload" or "please add dark theme option", because each word is now chosen *given the previous one*. It will also
-  copy whole training tickets verbatim, since your corpus is tiny. You've
-  just built the core loop of an LLM: predict a distribution over the next token given context, sample, append,
-  repeat. LLMs replace "count word pairs" with a transformer that conditions on thousands of previous tokens and has
-  learned from trillions of tokens.
-</Answer>
-
-## 17. Challenge
-
-Reproduce the **data-size trade-off** and build a **hybrid pipeline**.
-
-1. **Synthetic data.** Write a generator that makes realistic bug and feature tickets from templates and word lists,
-   with about 10% ambiguous tickets. Create a held-out test set of 200.
-2. **Learning curves.** Train both models on 4, 8, 16, 32, 64, 128 and 256 tickets, and record test accuracy for each.
-   Print a small table. Where do the curves cross, if they cross at all?
-3. **Out-of-distribution gate.** Use the generative model's per-word typicality score as a gate: if the score falls
-   below a threshold, return `'unknown'` instead of classifying. Pick the threshold from a set of 20 non-ticket inputs
-   (spam, code snippets, greetings) so that most get rejected and few real tickets do. Report both rates.
-4. **Reflection.** In four bullets: which model you'd ship for routing tickets, where the gate belongs in the request
-   path, why the gate's threshold is a product decision, and when you'd replace all of this with a constrained LLM call.
-
-<Answer label="Hints">
-  Expect Naive Bayes to be competitive, or ahead, at the smallest sizes, and the perceptron to catch up or overtake it
-  as data grows. Your synthetic generator's assumptions will shape the exact crossover, so treat it as illustrative,
-  not proof. Put the gate *before* classification and log every rejected input: those logs become your next batch of
-  labeled data. The threshold trades wrongly rejected real tickets against spam that slips through, and only the
-  product owner can decide which mistake costs more.
-</Answer>
-
-## 18. Sources and acknowledgements
+## Sources and acknowledgements
 
 This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.
