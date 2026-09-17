@@ -1,0 +1,531 @@
+---
+topic: '1.1.10'
+date: 2026-09-17
+summary: A model that scores perfectly on its training data can still fail on the next request; generalization is the only score that matters, and held-out splits, capacity control, regularization and leak-free data are how you measure and protect it.
+estimatedMinutes: 30
+tags: [Foundations, Training, Evaluation, Data]
+prerequisites: ['1.1.9', '1.1.6']
+references:
+  - title: 'Overfitting'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/overfitting/overfitting
+    tier: must
+    level: Beginner
+    why: A short, visual explanation of overfitting, generalization and the conditions that make a model generalize, with interactive loss curves.
+  - title: 'Datasets: Dividing the original dataset'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/overfitting/dividing-datasets
+    tier: must
+    level: Beginner
+    why: Explains training, validation and test sets, and why duplicates across splits make evaluation lie.
+  - title: 'Overfitting: L2 regularization'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/overfitting/regularization
+    tier: should
+    level: Beginner
+    why: Shows how the L2 penalty shrinks weights and how the regularization rate trades training fit for generalization, the same knob as lambda in this lesson.
+  - title: 'Common pitfalls and recommended practices: data leakage'
+    source: scikit-learn documentation
+    url: https://scikit-learn.org/stable/common_pitfalls.html
+    tier: should
+    level: Intermediate
+    why: Concrete code-level examples of leakage, such as fitting preprocessing on the full dataset before splitting, and how pipelines prevent it.
+  - title: Leakage and the Reproducibility Crisis in ML-based Science
+    source: Kapoor & Narayanan, Princeton (2023)
+    url: https://arxiv.org/abs/2207.07048
+    tier: optional
+    level: Intermediate
+    why: A taxonomy of leakage bugs found across hundreds of published papers, a useful checklist for reviewing any evaluation.
+  - title: Understanding Deep Learning Requires Rethinking Generalization
+    source: Zhang, Bengio, Hardt, Recht & Vinyals (2017)
+    url: https://arxiv.org/abs/1611.03530
+    tier: optional
+    level: Advanced
+    why: Shows that large image networks can reach perfect training accuracy even on randomly shuffled labels, so training accuracy alone says nothing about generalization.
+  - title: 'Dropout: A Simple Way to Prevent Neural Networks from Overfitting'
+    source: Srivastava, Hinton, Krizhevsky, Sutskever & Salakhutdinov — JMLR (2014)
+    url: https://jmlr.org/papers/v15/srivastava14a.html
+    tier: optional
+    level: Advanced
+    why: The paper that introduced dropout, the regularization technique named in this lesson.
+  - title: 'The CIFAR-10 dataset'
+    source: Alex Krizhevsky, University of Toronto (2009)
+    url: https://www.cs.toronto.edu/~kriz/cifar.html
+    tier: optional
+    level: Beginner
+    why: The image dataset used in the Zhang et al. shuffled-labels experiment described in this lesson.
+  - title: 'Mulberry32 PRNG'
+    source: Tommy Ettinger (GitHub gist)
+    url: https://gist.github.com/tommyettinger/46a874533244883189143505d203312c
+    tier: optional
+    level: Advanced
+    why: The original public-domain source of the mulberry32 seeded random number generator used in this lesson's code.
+---
+
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
+
+## 1. Why does this exist?
+
+Lesson 1.1.9 trained the bot net on 6 signups and called it v1. It made 2 errors on those 6. But nobody deploys a
+model to classify *those* 6 signups again. They're already labeled. The only thing that matters is how it does on
+**signups it has never seen**.
+
+That's **generalization**: performing well on new data from the same kind of source. Its failure mode is
+**overfitting**: the model fits the training data, including its noise and quirks, so closely that it does worse on
+new data. Training minimizes loss on the training set (lessons 1.1.6 and 1.1.7), so it will happily overfit unless you
+measure and prevent it.
+
+## 2. What problem does it solve?
+
+This lesson answers **"how do I know the model will work in production, before it's in production?"**
+
+- **Honest measurement.** Keep data the model never trains on, and score it there.
+- **Choosing a model.** Pick the size, settings and training length that do best on held-out data, not on training
+  data.
+- **Preventing memorization.** Constrain the model (smaller capacity, regularization, more data) so it learns the
+  pattern rather than the examples.
+- **Catching evaluation bugs.** Data leakage makes a model look great in testing and fail after launch. It's a bug
+  class, and you can review for it like any other.
+
+## 3. Simple explanation
+
+**Training accuracy is a unit test the model wrote after seeing the answers.**
+
+Imagine a function that passes every test case because it contains `if (input === testCase1) return expected1`. It
+passes 100% of the tests and is useless on real input. A model with enough parameters can do the same thing: store
+the training examples instead of learning the rule behind them.
+
+So you split your labeled data:
+
+- **Training set:** the model learns from this.
+- **Validation set:** you use this to choose between models and settings. The model never trains on it.
+- **Test set:** you score the final choice on this, **once**, to report how it will likely do in production.
+
+A model **overfits** when training performance is high but validation performance is much worse. It **underfits**
+when both are poor, because it's too simple to capture the pattern. The goal is the best **validation** score.
+
+## 4. Mental model
+
+**Every labeled dataset is signal plus noise. A model with too much freedom learns both.**
+
+```
+ true rule (signal)      +   quirks + wrong labels (noise)
+ fast + few keys = bot       this one human typed fast,
+                             that bot was labeled human
+```
+
+The signal repeats in new data. The noise doesn't. A model that learns the noise gets training points right and
+new points wrong. A model with too little freedom can't even learn the signal. **Capacity**, how flexible the model
+is, is the dial between them.
+
+## 5. How it works internally
+
+**Why training alone can't detect it.** Gradient descent minimizes the loss *on the training examples*. Driving that
+loss toward zero is exactly what it's for. Nothing in the training loop knows about data it hasn't seen, so training
+loss keeps improving while real-world performance gets worse.
+
+**Capacity.** A model's capacity is how many different shapes of decision boundary it can represent. More
+parameters, more input features, higher polynomial degree, deeper networks, longer training and smaller `k` in
+k-nearest neighbors all add capacity. With 20 training examples and enough capacity, a model can put a boundary
+around every single point.
+
+**The classic curve.** As capacity grows, training error keeps falling. Validation error falls at first, then rises
+again once the model starts fitting noise:
+
+```
+ error
+   │ \                             validation
+   │  \                       ...''
+   │   \                ...'''
+   │    '.._     ...''''
+   │        ''''         ◀── best: lowest validation error
+   │  '..
+   │     ''..                      training
+   │         '''.........________________
+   └────────────────────────────────────▶ capacity
+     underfit        good fit     overfit
+```
+
+<Callout type="emerging" title="Big models complicate the curve">
+  Very large networks trained on lots of data often keep improving on validation data past the point where they
+  can fit the training set perfectly ("double descent"). Research is still working out why. The practical rule is
+  the same either way: decide based on held-out data, never on training accuracy.
+</Callout>
+
+**The tools that fight overfitting:**
+
+- **More data.** Noise averages out and memorizing becomes harder. It's usually the most effective fix.
+- **Less capacity.** Fewer features, a smaller model, a larger `k`.
+- **Regularization.** Add a penalty to the loss for large weights. **L2** adds `(lambda / 2) × sum(w²)` to the loss, so in
+  gradient descent every update also subtracts `lr × lambda × w`, nudging each weight toward zero. Large weights let a model make sharp, wiggly
+  boundaries around individual points. Keeping them small keeps the boundary smooth. `lambda` sets the strength.
+- **Early stopping.** Track validation loss during training and keep the weights from the step where it was lowest.
+- **Dropout** (Srivastava et al., 2014), for neural networks, randomly zeroes some activations during training so the network can't rely on
+  any single path. Named here; later seasons use it.
+
+**Data leakage** is when information that wouldn't exist at prediction time, or that comes from the evaluation
+data, gets into training. Common forms, drawing on the scikit-learn pitfalls guide and Kapoor & Narayanan's leakage
+taxonomy:
+
+- **Duplicates across splits:** the same user, document or near-identical row lands in both training and test sets.
+- **Target leakage:** a feature that's only known *after* the outcome, like `accountSuspended` when predicting
+  bots.
+- **Preprocessing on all data:** computing normalization stats, vocabularies or feature selection on the full
+  dataset before splitting.
+- **Time travel:** random splits on time-ordered data, so the model trains on the future and tests on the past.
+- **Tuning on the test set:** checking test scores repeatedly while choosing settings, which turns the test set into
+  a second validation set.
+
+<Callout type="fact">
+  Zhang et al. (2017) trained standard image networks on CIFAR-10 (Krizhevsky, 2009) with **randomly shuffled labels**. The networks
+  still reached 100% training accuracy, while test accuracy was no better than chance. A high training score can
+  be pure memorization.
+</Callout>
+
+## 6. Visual explanation
+
+How to split and use labeled data:
+
+```
+ all labeled data (deduplicated, grouped by user)
+ ┌──────────────────────────┬─────────────┬─────────────┐
+ │ training (fit weights)   │ validation  │ test        │
+ │                          │ (choose k,  │ (score once │
+ │                          │ lambda,     │ at the end) │
+ │                          │ model)      │             │
+ └──────────────────────────┴─────────────┴─────────────┘
+    used every step            used per       used once
+                               experiment
+```
+
+The code example's results as a picture (validation accuracy, 20 training examples):
+
+```
+ lookup table  train 100% │█████████████           52.0%
+ 1-NN          train 100% │████████████████████    81.0%
+ 5-NN          train  90% │██████████████████████  86.7%  ◀ chosen
+ 15-NN         train  85% │█████████████████████   82.7%
+ always human  train  60% │█████████████           51.0%
+```
+
+What L2 does to a boundary between bots (B) and humans (H), with one mislabeled point (h):
+
+```
+ no regularization            with L2
+ B B B ┌─┐ H H                B B B │ H H
+ B B B │h│ H H                B B B │h H     h: misclassified,
+ B B B └─┘ │ H                B B B │ H H     boundary stays
+ B B B ────┘ H                B B B │ H H     simple
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Machine learning equivalent |
+|---|---|
+| Code that special-cases the test inputs | Overfitting: memorizing training examples |
+| Tests written from the implementation | Scoring on training data |
+| A separate QA environment | The validation set |
+| Final acceptance test on a release candidate | The test set, used once |
+| Test fixtures shared with production data | Duplicates across splits (leakage) |
+| Reading a value that isn't available yet | Target leakage |
+| Flaky benchmark tuned until it passes | Tuning settings against the test set |
+| Keep code simple unless complexity pays for itself | Limit capacity, add regularization |
+| Canary traffic reveals real behavior | Production metrics catch what offline evaluation missed |
+
+For **backend and data engineers**, splits are data pipeline code: dedupe, group by user or tenant, and split by time
+when the data is time-ordered, before any feature computation. For **distributed systems** people, leakage often
+comes from joins that pull in columns populated later in the event stream. For **frontend engineers**, it explains
+why a model that aced the demo set can behave strangely on real user input.
+
+## 8. Code example
+
+Simulated bot signups with about 10% wrong labels, the kind of noise a real review queue has. Twenty training
+examples, 300 validation and 300 test. It compares a pure memorizer, k-nearest neighbors at several capacities, and a
+high-capacity polynomial logistic regression with and without L2. Then it picks a model on validation, scores it once
+on test, and shows what leakage does. Run it with `node --experimental-strip-types overfit.ts` (Node 22.6+).
+
+```ts
+// mulberry32: a public-domain seeded random number generator by Tommy Ettinger.
+function mulberry32(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+type Example = { x: number[]; y: number; noisy: boolean };
+type Model = (x: number[]) => number;
+const rand = mulberry32(7);
+
+// Simulated signups: [secondsToFill, keystrokes]. About 10% of labels are wrong, like a real review queue.
+function signup(): Example {
+  const bot = rand() < 0.5;
+  const s = bot ? 1 + rand() * 5 : 3.5 + rand() * 16;
+  const k = bot ? Math.floor(rand() * 10) : 5 + Math.floor(rand() * 40);
+  const noisy = rand() < 0.1;
+  return { x: [+s.toFixed(1), k], y: bot !== noisy ? 1 : 0, noisy };
+}
+const make = (n: number) => Array.from({ length: n }, signup);
+const train = make(20), validation = make(300), test = make(300);
+
+const accuracy = (m: Model, data: Example[]) => data.filter((e) => m(e.x) === e.y).length / data.length;
+const pct = (a: number) => `${(a * 100).toFixed(1)}%`;
+const report = (name: string, m: Model, extra = '') =>
+  console.log(`${name.padEnd(20)} train ${pct(accuracy(m, train)).padStart(6)}   validation ${pct(accuracy(m, validation)).padStart(6)}${extra}`);
+
+console.log(`wrong labels: train ${train.filter((e) => e.noisy).length}/${train.length}, validation ${validation.filter((e) => e.noisy).length}/300`);
+report('always "human"', () => 0);
+
+// 1. Pure memorization: an exact-match lookup table.
+const table = new Map(train.map((e) => [e.x.join(','), e.y]));
+report('lookup table', (x) => table.get(x.join(',')) ?? 0);
+
+// 2. k-nearest neighbors: small k = more capacity to follow individual points.
+const dist = (a: number[], b: number[]) => Math.hypot((a[0] - b[0]) / 5, (a[1] - b[1]) / 10);
+const knn = (data: Example[], k: number): Model => (x) => {
+  const near = [...data].sort((a, b) => dist(a.x, x) - dist(b.x, x)).slice(0, k);
+  return near.filter((e) => e.y === 1).length * 2 > k ? 1 : 0;
+};
+for (const k of [1, 3, 5, 9, 15]) report(`${k}-nearest neighbors`, knn(train, k));
+
+// 3. Logistic regression on 15 polynomial features, with L2 regularization strength lambda.
+const features = ([s, k]: number[]) => {
+  const out: number[] = [];
+  for (let i = 0; i <= 4; i++) for (let j = 0; i + j <= 4; j++) out.push((s / 10) ** i * (k / 25) ** j);
+  return out;
+};
+const sigmoid = (z: number) => 1 / (1 + Math.exp(-z));
+function fitLogistic(data: Example[], lambda: number, steps = 20_000, lr = 0.5) {
+  const X = data.map((e) => features(e.x));
+  let w: number[] = new Array(X[0].length).fill(0);
+  for (let t = 0; t < steps; t++) {
+    const grad: number[] = new Array(w.length).fill(0);
+    X.forEach((f, n) => {
+      const err = sigmoid(f.reduce((a, v, i) => a + v * w[i], 0)) - data[n].y;
+      f.forEach((v, i) => (grad[i] += (err * v) / X.length));
+    });
+    // L2 adds lambda * w to every gradient except the bias: "keep weights small unless the data insists".
+    w = w.map((v, i) => v - lr * (grad[i] + (i === 0 ? 0 : lambda * v)));
+  }
+  const model: Model = (x) => (sigmoid(features(x).reduce((a, v, i) => a + v * w[i], 0)) > 0.5 ? 1 : 0);
+  return { model, size: Math.hypot(...w.slice(1)) };
+}
+for (const lambda of [0, 0.001, 0.01, 0.1]) {
+  const { model, size } = fitLogistic(train, lambda);
+  report(`poly, lambda=${lambda}`, model, `   weight size ${size.toFixed(1)}`);
+}
+
+// Pick on validation, then touch the test set exactly once.
+const chosen = knn(train, 5);
+console.log(`\nchosen 5-NN on test: ${pct(accuracy(chosen, test))}`);
+
+// Leakage: 60 of the 300 "test" rows are copies of training rows (same bot retrying, bad dedupe before the split).
+const leakyTest = [...test.slice(0, 240), ...Array.from({ length: 60 }, (_, i) => train[i % 20])];
+const oneNN = knn(train, 1);
+console.log(`1-NN on clean test: ${pct(accuracy(oneNN, test))}   on leaky test: ${pct(accuracy(oneNN, leakyTest))}`);
+```
+
+Output:
+
+```
+wrong labels: train 1/20, validation 29/300
+always "human"       train  60.0%   validation  51.0%
+lookup table         train 100.0%   validation  52.0%
+1-nearest neighbors  train 100.0%   validation  81.0%
+3-nearest neighbors  train  90.0%   validation  82.3%
+5-nearest neighbors  train  90.0%   validation  86.7%
+9-nearest neighbors  train  85.0%   validation  84.0%
+15-nearest neighbors train  85.0%   validation  82.7%
+poly, lambda=0       train  95.0%   validation  83.3%   weight size 18.5
+poly, lambda=0.001   train  95.0%   validation  86.3%   weight size 5.8
+poly, lambda=0.01    train  90.0%   validation  86.3%   weight size 2.3
+poly, lambda=0.1     train  90.0%   validation  85.0%   weight size 0.9
+
+chosen 5-NN on test: 85.0%
+1-NN on clean test: 80.0%   on leaky test: 83.0%
+```
+
+What to take from it:
+
+- **Perfect training accuracy means nothing on its own.** The lookup table scores 100% on training and 52.0% on
+  validation, barely better than always guessing "human" (51.0%).
+- **Capacity has a sweet spot.** 1-NN follows every training point, including the mislabeled one: 100% train, 81.0%
+  validation. 5-NN gives up some training accuracy (90%) and does best on validation (86.7%). At 15 neighbors it
+  starts to underfit (82.7%).
+- **The ceiling isn't 100%.** 29 of the 300 validation labels are wrong, so even the true rule would score about
+  90.3%. A model that claims more on noisy labels is fitting noise.
+- **Regularization shrinks weights and helps.** Without L2, the polynomial model's weights reach size 18.5 and it
+  gets 83.3% on validation. A small `lambda` of 0.001 shrinks them to 5.8 and raises validation to 86.3%. At 0.1 the
+  weights are tiny (0.9) and validation drops back to 85.0%: too much regularization underfits.
+- **The test score is the honest estimate.** The chosen 5-NN scores 85.0% on test, slightly below its 86.7% on
+  validation. That's expected: picking the best of several models on validation makes the validation score a little
+  optimistic.
+- **Leakage inflates scores silently.** When 60 test rows are copies of training rows, 1-NN goes from 80.0% to 83.0%
+  with no change to the model. With more duplicates, or a memorizing model, the gap grows.
+
+## 9. Real-world example
+
+**An illustrative scenario: a team ships a support-ticket classifier that routes tickets as "bug" or "feature request" (the lesson 1.1.3
+example).** Offline, it scores 97% on test. In production, routing accuracy is around 70%.
+
+The investigation finds three problems:
+
+1. **Duplicate tickets across splits.** Customers file the same issue several times, and each copy was split
+   randomly. Many "test" tickets had near-identical twins in training.
+2. **Target leakage.** One feature was the ticket's `component` field, which support agents fill in *after*
+   triaging. At prediction time, it's empty.
+3. **Time travel.** The split was random across two years of tickets, so the model trained on tickets about features
+   released after some of the test tickets were written.
+
+The fixes are pipeline changes: deduplicate and group by customer before splitting, only use fields that exist when
+the ticket is created, and split by time so the test set is the most recent months. The honest test score drops to
+74%, which matches production, and now improvements measured offline actually show up after deploys.
+
+<Callout type="practice">
+  Before trusting any evaluation, ask three questions: could the same entity (user, document, session) appear on
+  both sides of the split? Is every feature available at the moment of prediction? Does the split respect time? If
+  a score looks too good, assume leakage until you've ruled it out.
+</Callout>
+
+## 10. Common mistakes
+
+- **Reporting training accuracy.** It measures memory, not skill.
+- **Tuning on the test set.** Every look at test scores while choosing settings leaks a little. Choose on validation;
+  score test once.
+- **Random splits on grouped or time-ordered data.** Split by user, tenant or time when that's how production data
+  arrives.
+- **Preprocessing before splitting.** Normalization stats, vocabularies and feature selection must be computed on
+  the training set only, then applied to the others.
+- **Fixing overfitting with more capacity or more epochs.** When validation gets worse while training improves,
+  stop or constrain the model; don't train harder.
+- **Tiny validation sets.** On 20 validation examples, one example is 5 percentage points. Differences smaller than
+  the noise aren't real.
+- **Assuming "more data" means "more of the same rows".** Duplicates add no information and create leakage.
+
+## 11. Limitations
+
+- **Held-out data only predicts production if it looks like production.** When users, attackers or products change
+  (distribution shift), a well-generalized model can still degrade. That's what monitoring is for (Season 6).
+- **Validation scores are estimates with error bars.** On a few hundred examples, differences of a point or two can
+  be chance.
+- **Leakage can be subtle.** Near-duplicates, shared templates or correlated IDs can leak without any exact
+  duplicate row.
+- **For pretrained LLMs, the test set may be in the training data.** Public benchmarks leak into web-scale training
+  data ("contamination"), which is one reason to build your own evals (lesson 1.1.11 and Season 6).
+- **The textbook U-curve isn't the whole story for very large models**, as the callout above notes. The measurement
+  discipline still applies.
+
+## 12. When to use it
+
+Every time you train, fine-tune, choose or evaluate a model:
+
+- **Before training:** deduplicate, group, and split by time or entity. Freeze the test set.
+- **While tuning:** compare settings on validation. Use early stopping and regularization when the gap between
+  training and validation grows.
+- **When choosing a vendor model or prompt:** score candidates on your own held-out examples, not on the ones you
+  used to write the prompt.
+- **In code review of ML pipelines:** treat splits and feature availability as correctness issues, like
+  transaction boundaries.
+- **When a score looks too good:** look for leakage first.
+
+## 13. When NOT to use it
+
+- **Don't hold out data from a deterministic rule.** If there's no learning, there's nothing to generalize (lesson
+  1.1.2). Unit tests are the right tool.
+- **Don't regularize a model that's underfitting.** If both training and validation scores are poor, add capacity,
+  features or data first.
+- **Don't split tiny datasets three ways.** With a few dozen examples, use cross-validation (the challenge) instead of
+  a single fixed validation set, and treat any score as rough.
+- **Don't wait for a perfect offline score to learn about production.** Offline evaluation reduces risk; canaries and
+  monitoring (lesson 1.1.9) confirm it.
+
+## 14. Interview explanation (30 seconds)
+
+> Overfitting is when a model learns the training data, including its noise, so closely that it does worse on new
+> data. Generalization is how well it performs on data it hasn't seen, which is what matters in production. You
+> measure it by holding out data: train on the training set, choose models and settings on a validation set, and
+> report once on a test set. You reduce overfitting with more data, less capacity, regularization like L2 or dropout,
+> and early stopping. And you guard against data leakage, like duplicates across splits or features that aren't
+> available at prediction time, because it makes evaluation look better than reality.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start with why it happens. Training minimizes loss on the training examples. A model with enough capacity can drive
+that loss to zero by fitting noise and individual quirks, and nothing in the optimization knows about unseen data.
+Zhang et al. showed standard image networks can hit 100% training accuracy on randomly shuffled labels, so training
+accuracy alone can't distinguish learning from memorizing.
+
+Describe the trade-off. Low capacity underfits: training and validation are both poor. High capacity overfits:
+training is great, validation is worse. In a small experiment with noisy bot-signup labels, a 1-nearest-neighbor
+model got 100% training and 81% validation accuracy, while 5 neighbors got 90% and 87%, close to the roughly 90%
+ceiling set by the label noise.
+
+Explain the process. Split into training, validation and test. Tune on validation. Evaluate on test once, because
+repeated looks make it optimistic. For small data, use k-fold cross-validation. Split in the way production data
+arrives: by time for time-ordered data, by user or tenant for grouped data.
+
+Cover the remedies. More (deduplicated) data is often the strongest fix. Reduce capacity. Add L2 regularization,
+which penalizes large weights and pulls each one toward zero on every update, giving smoother decision boundaries.
+Use early stopping on validation loss, and dropout for neural networks. Mention that very large networks can show
+double descent, but decisions are still made on held-out data.
+
+Finish with leakage as a bug class: duplicates across splits, target leakage from fields filled in after the
+outcome, preprocessing fit on all the data, and random splits on time series. Each inflates offline scores and
+fails in production. For LLMs, the same problem appears as benchmark contamination, which is why teams build private
+eval sets.
+
+## 16. Hands-on exercise
+
+Run the code example, then:
+
+1. **Remove the noise.** Change `rand() < 0.1` to `rand() < 0` so every label is correct. The features stay the same
+   because the random stream is unchanged. What happens to 1-NN's validation accuracy, the lookup table's, and the
+   best polynomial model's? What does that tell you about what overfitting was fitting?
+2. **Add data.** Restore the noise and change `make(20)` to `make(200)` for the training set. (This shifts the random
+   stream, so validation data changes too.) Compare the gap between train and validation accuracy for 1-NN, 9-NN
+   and the unregularized polynomial model.
+3. **Spot the leak.** A teammate adds a feature `emailVerifiedWithin24h` to the bot detector, and test accuracy
+   jumps from 86% to 99%. What's wrong, and how would you check?
+
+<Answer label="Answers from running it">
+  1. With clean labels, 1-NN jumps from 81.0% to **91.0%** validation, and the unregularized polynomial model reaches
+     100% training and 94.3% validation. The best polynomial is `lambda = 0.001` at **97.0%**. The lookup table stays
+     at **52.0%**: it has nothing to do with noise, it simply can't handle unseen inputs. Most of the damage to 1-NN
+     and the unregularized model came from fitting wrong labels.
+  2. With 200 training examples (20 wrong labels): 1-NN is still 99.0% train vs 83.0% validation, a 16-point gap,
+     because it always memorizes its neighbors. 9-NN is 88.0% vs 88.0%, no gap. The unregularized polynomial model
+     is 86.5% vs 86.7%: more data removed its overfitting, and weight size fell from 18.5 to 12.0. Meanwhile
+     `lambda = 0.1` now underfits at 83.0% on both. The right amount of regularization depends on how much data you
+     have. (The lookup table shows 99.0% train, not 100%, because two training rows share features but have different
+     labels.)
+  3. It's target leakage. At signup time, the email hasn't been verified yet, and bots rarely verify, so the feature
+     encodes the answer from the future. Check whether each feature's value exists at the moment of prediction, and
+     compare scores with the feature removed. If one feature explains a huge jump, suspect it first.
+</Answer>
+
+## 17. Challenge
+
+Replace the single validation set with **k-fold cross-validation** and add a leak-proof split.
+
+1. Generate 60 labeled signups total, with the same generator. Write `kFold(data, 5)` that yields 5 train/validation
+   pairs, each fold used once as validation.
+2. For `k` in 1, 3, 5, 9, 15 neighbors and `lambda` in 0, 0.001, 0.01, 0.1, report mean and standard deviation of
+   validation accuracy across folds. Which settings are actually distinguishable given the spread?
+3. Give each signup a `deviceId`, with bots reusing a few device ids and near-identical features. Show that a random
+   5-fold split scores 1-NN higher than a **group** k-fold split that keeps each device on one side.
+4. Add **early stopping** to `fitLogistic` with `lambda = 0`: track validation loss every 500 steps and return the
+   weights from the best step. Compare it with the L2 results.
+
+<Answer label="Hints">
+  Shuffle once with the seeded RNG, then slice into 5 equal folds. Standard deviation across folds is often several
+  percentage points with 12 validation examples per fold, so many settings will overlap; that's the lesson. For
+  group k-fold, shuffle the unique device ids and assign whole devices to folds. Duplicated bots will then never have
+  a twin in training, and 1-NN's advantage disappears. For early stopping, compute cross-entropy (lesson 1.1.6) on the
+  validation set, not accuracy, because loss changes smoothly while accuracy moves in steps.
+</Answer>
+
+## 18. Sources and acknowledgements
+
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

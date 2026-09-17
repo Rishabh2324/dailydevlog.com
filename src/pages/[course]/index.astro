@@ -1,33 +1,30 @@
 ---
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Badge from '../../components/Badge.astro';
-import TopicList from '../../components/ai-course/TopicList.astro';
-import Roadmap from '../../content/ai-course/roadmap.mdx';
-import { getCourse, LEVELS, type Level } from '../../lib/ai-course';
+import TopicList from '../../components/course/TopicList.astro';
+import { COURSE_IDS, COURSES, getCourse, levelInfo, type CourseId, type Level } from '../../lib/courses';
 
-const seasons = await getCourse();
+export function getStaticPaths() {
+  return COURSE_IDS.map((course) => ({ params: { course } }));
+}
+
+const course = Astro.params.course as CourseId;
+const info = COURSES[course];
+const roadmaps = import.meta.glob<{ default: AstroComponentFactory }>('../../content/*/roadmap.mdx', { eager: true });
+const Roadmap = roadmaps[`../../content/${course}/roadmap.mdx`].default;
+const seasons = await getCourse(course);
 const allTopics = seasons.flatMap((s) => s.modules.flatMap((m) => m.topics));
 const published = allTopics.filter((t) => t.lesson).length;
 const firstLesson = allTopics.find((t) => t.lesson);
 ---
 
-<BaseLayout
-  title="AI Engineering Course"
-  description="A self-paced, written AI engineering curriculum for software engineers — from how LLMs work to production RAG, agents and MCP."
->
+<BaseLayout title={info.name} description={info.description}>
   <section class="rounded-lg border border-transparent bg-brand-teal-deep p-6 text-on-dark sm:p-10 dark:border-hairline-strong">
-    <p class="text-xs font-semibold tracking-wide text-brand-green uppercase">Self-paced · written · build-first</p>
-    <h1 class="mt-2 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">
-      AI Engineering, from first principles to production
-    </h1>
-    <p class="mt-4 max-w-2xl leading-relaxed text-on-dark-muted">
-      A written course for software engineers who want to build real AI products: how LLMs work, prompting and APIs,
-      embeddings, RAG, tools, agents, MCP, evaluation, security and production architecture. Concepts first,
-      frameworks second, TypeScript throughout.
-    </p>
-    <p class="mt-4 font-mono text-sm text-brand-green">
-      Understand → Visualize → Explain → Build → Break → Debug → Apply
-    </p>
+    <p class="text-xs font-semibold tracking-wide text-brand-green uppercase">{info.eyebrow}</p>
+    <h1 class="mt-2 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">{info.headline}</h1>
+    <p class="mt-4 max-w-2xl leading-relaxed text-on-dark-muted">{info.intro}</p>
+    <p class="mt-4 font-mono text-sm text-brand-green">{info.loop}</p>
     <div class="mt-6 flex flex-wrap items-center gap-3">
       {
         firstLesson && (
@@ -50,11 +47,11 @@ const firstLesson = allTopics.find((t) => t.lesson);
     <p class="mt-1 text-sm text-slate">Every lesson is tagged with the level you should reach.</p>
     <ul class="mt-4 grid gap-3 sm:grid-cols-5">
       {
-        (Object.keys(LEVELS) as Level[]).map((level) => (
+        (Object.keys(info.levels) as Level[]).map((level) => (
           <li class="rounded-lg border border-hairline p-4">
-            <Badge variant={LEVELS[level].variant}>{level}</Badge>
-            <p class="mt-2 font-semibold text-ink">{LEVELS[level].label}</p>
-            <p class="text-sm text-slate">{LEVELS[level].description}</p>
+            <Badge variant={levelInfo(course, level).variant}>{level}</Badge>
+            <p class="mt-2 font-semibold text-ink">{info.levels[level].label}</p>
+            <p class="text-sm text-slate">{info.levels[level].description}</p>
           </li>
         ))
       }
@@ -97,7 +94,7 @@ const firstLesson = allTopics.find((t) => t.lesson);
                       </a>
                     </p>
                     <div class="mt-2">
-                      <TopicList topics={mod.topics} />
+                      <TopicList course={course} topics={mod.topics} />
                     </div>
                   </details>
                 );

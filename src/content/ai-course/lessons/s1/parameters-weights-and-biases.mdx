@@ -36,10 +36,16 @@ references:
     tier: optional
     level: Advanced
     why: Section 3 is the source of the "16 bytes per parameter" figure for mixed-precision training with Adam, and explains where every byte goes.
+  - title: 'Gradient-Based Learning Applied to Document Recognition'
+    source: LeCun, Bottou, Bengio & Haffner — Proceedings of the IEEE (1998)
+    url: https://ieeexplore.ieee.org/document/726791
+    tier: optional
+    level: Advanced
+    why: The paper that introduced the MNIST dataset, whose 28×28 images give the 784-input digit classifier counted in this lesson.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -107,12 +113,12 @@ The 2-2-1 bot detector from lesson 1.1.4:
 | output (2 → 1) | 2 × 1 = 2 | 1 | 3 |
 | **network** | **6** | **3** | **9** |
 
-A classic digit classifier with 784 inputs, 128 hidden neurons and 10 outputs has `784 × 128 + 128 + 128 × 10 + 10 =
+A classic MNIST digit classifier (LeCun et al., 1998) with 784 inputs, 128 hidden neurons and 10 outputs has `784 × 128 + 128 + 128 × 10 + 10 =
 101,770` parameters. Notice the **multiplication**: parameter count grows with the *product* of neighboring layer
 widths, so widening layers grows the model fast. Biases barely register next to the weights.
 
 **Counting a real 7B model.** A transformer (Module 1.3) is built from more of the same: big weight matrices.
-You don't need to know what each matrix does yet. Llama 2 7B's published config gives `vocab_size = 32000`,
+You don't need to know what each matrix does yet. Llama 2 7B's published config (from Meta's release; Touvron et al., 2023) gives `vocab_size = 32000`,
 `hidden_size = 4096`, `num_hidden_layers = 32` and `intermediate_size = 11008`, and its layers have no biases. The
 parameters are:
 
@@ -427,6 +433,6 @@ Build a **"will it fit?" calculator**.
   model, so it becomes the bottleneck quickly. That's one reason long-context requests are expensive to serve.
 </Answer>
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

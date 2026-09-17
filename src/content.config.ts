@@ -39,59 +39,69 @@ const dailyLog = defineCollection({
 const level = z.enum(['L1', 'L2', 'L3', 'L4', 'L5']);
 const maturity = z.enum(['Established', 'Emerging', 'Experimental', 'Hype']);
 
-const aiCourse = defineCollection({
-  loader: file('src/content/ai-course/course.yaml'),
-  schema: () =>
-    z.object({
-      number: z.number(),
-      title: z.string(),
-      summary: z.string(),
-      modules: z.array(
-        z.object({
-          id: z.string(),
-          title: z.string(),
-          summary: z.string(),
-          frontend: z.boolean().default(false),
-          topics: z.array(
-            z.object({
-              id: z.string(),
-              title: z.string(),
-              slug: z.string().optional(),
-              level,
-              maturity: maturity.optional(),
-              volatile: z.boolean().default(false),
-            })
-          ),
-        })
-      ),
-    }),
-});
-
-const aiLessons = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/ai-course/lessons' }),
-  schema: () =>
-    z.object({
-      topic: z.string(),
-      date: z.coerce.date(),
-      lastVerified: z.coerce.date().optional(),
-      summary: z.string(),
-      estimatedMinutes: z.number(),
-      prerequisites: z.array(z.string()).default([]),
-      tags: z.array(z.string()).default([]),
-      references: z
-        .array(
+const courseOutline = (course: string) =>
+  defineCollection({
+    loader: file(`src/content/${course}/course.yaml`),
+    schema: () =>
+      z.object({
+        number: z.number(),
+        title: z.string(),
+        summary: z.string(),
+        modules: z.array(
           z.object({
+            id: z.string(),
             title: z.string(),
-            source: z.string(),
-            url: z.string().url(),
-            tier: z.enum(['must', 'should', 'optional']),
-            level: z.enum(['Beginner', 'Intermediate', 'Advanced']),
-            why: z.string(),
+            summary: z.string(),
+            frontend: z.boolean().default(false),
+            topics: z.array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                slug: z.string().optional(),
+                level,
+                maturity: maturity.optional(),
+                volatile: z.boolean().default(false),
+              })
+            ),
           })
-        )
-        .default([]),
-      draft: z.boolean().default(false),
-    }),
-});
+        ),
+      }),
+  });
 
-export const collections = { dsa, 'daily-log': dailyLog, 'ai-course': aiCourse, 'ai-lessons': aiLessons };
+const courseLessons = (course: string) =>
+  defineCollection({
+    loader: glob({ pattern: '**/*.mdx', base: `./src/content/${course}/lessons` }),
+    schema: () =>
+      z.object({
+        topic: z.string(),
+        date: z.coerce.date(),
+        lastVerified: z.coerce.date().optional(),
+        summary: z.string(),
+        estimatedMinutes: z.number(),
+        prerequisites: z.array(z.string()).default([]),
+        tags: z.array(z.string()).default([]),
+        references: z
+          .array(
+            z.object({
+              title: z.string(),
+              source: z.string(),
+              url: z.string().url(),
+              tier: z.enum(['must', 'should', 'optional']),
+              level: z.enum(['Beginner', 'Intermediate', 'Advanced']),
+              why: z.string(),
+            })
+          )
+          .default([]),
+        draft: z.boolean().default(false),
+      }),
+  });
+
+// Course ids must match COURSES in src/lib/courses.ts.
+export const collections = {
+  dsa,
+  'daily-log': dailyLog,
+  'ai-course': courseOutline('ai-course'),
+  'ai-course-lessons': courseLessons('ai-course'),
+  'ai-native-engineering': courseOutline('ai-native-engineering'),
+  'ai-native-engineering-lessons': courseLessons('ai-native-engineering'),
+};

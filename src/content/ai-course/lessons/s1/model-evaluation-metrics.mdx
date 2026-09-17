@@ -1,0 +1,495 @@
+---
+topic: '1.1.11'
+date: 2026-09-17
+summary: Accuracy hides the errors that matter; the confusion matrix, precision, recall and F1 show what kind of wrong a model is, and picking the decision threshold is a product trade-off between those errors, not a modeling detail.
+estimatedMinutes: 30
+tags: [Foundations, Evaluation, Metrics]
+prerequisites: ['1.1.10']
+references:
+  - title: 'Classification: Accuracy, recall, precision, and related metrics'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/classification/accuracy-precision-recall
+    tier: must
+    level: Beginner
+    why: Defines each metric from the confusion matrix and explains when to prefer which, with the same imbalanced-data warning as this lesson.
+  - title: Thresholds and the confusion matrix
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/classification/thresholding
+    tier: must
+    level: Beginner
+    why: An interactive demo of moving a classification threshold and watching true and false positives trade off.
+  - title: 'Classification: ROC and AUC'
+    source: Google Machine Learning Crash Course
+    url: https://developers.google.com/machine-learning/crash-course/classification/roc-and-auc
+    tier: should
+    level: Beginner
+    why: Introduces ROC curves and AUC, threshold-free summaries this lesson only names, and how to pick a point on the curve.
+  - title: 'Metrics and scoring: quantifying the quality of predictions'
+    source: scikit-learn documentation
+    url: https://scikit-learn.org/stable/modules/model_evaluation.html
+    tier: should
+    level: Intermediate
+    why: The reference for classification metrics in practice, including averaging choices for multi-class problems and precision-recall curves.
+  - title: The Precision-Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets
+    source: Saito & Rehmsmeier, PLOS ONE (2015)
+    url: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0118432
+    tier: optional
+    level: Intermediate
+    why: Shows with simulations and real studies why ROC curves can look good on rare-positive problems while precision tells the real story.
+  - title: 'Mulberry32 PRNG'
+    source: Tommy Ettinger (GitHub gist)
+    url: https://gist.github.com/tommyettinger/46a874533244883189143505d203312c
+    tier: optional
+    level: Advanced
+    why: The original public-domain source of the mulberry32 seeded random number generator used in this lesson's code.
+---
+
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
+
+## 1. Why does this exist?
+
+Lesson 1.1.10 chose a 5-nearest-neighbors bot detector because it scored **86.7%** on validation. That single number
+answers "how often is it right?" It doesn't answer the questions the product team will ask:
+
+- Of the signups we block, how many are real people we just turned away?
+- Of the bots that hit us, how many got through?
+- What happens when bots are 3% of traffic instead of half?
+
+A model can be wrong in two different ways, and those two mistakes almost never cost the same. Evaluation metrics
+exist to count each kind separately, so you can choose a model and a threshold based on what the errors actually cost.
+
+## 2. What problem does it solve?
+
+This lesson answers **"is this model good enough for this job, and how should it be configured?"**
+
+- **Seeing error types.** Separate "blocked a human" from "let a bot in".
+- **Surviving imbalance.** When the thing you're looking for is rare (fraud, bots, outages, bugs), accuracy rewards a
+  model that never finds it.
+- **Comparing models honestly.** Two models with equal accuracy can have very different precision and recall.
+- **Turning scores into decisions.** Models output scores. Where you draw the line is a product decision you can
+  make explicitly, with numbers.
+- **A shared vocabulary.** The same metrics come back for retrieval (lesson 3.2.8), LLM evals (Season 6) and
+  monitoring.
+
+## 3. Simple explanation
+
+**A classifier's results fit in a 2×2 table, and every metric is a ratio of its cells.**
+
+Call the thing you're detecting the **positive** class (here, "bot"). Each prediction lands in one cell:
+
+- **True positive (TP):** said bot, was a bot.
+- **False positive (FP):** said bot, was a human. A false alarm.
+- **False negative (FN):** said human, was a bot. A miss.
+- **True negative (TN):** said human, was a human.
+
+Then:
+
+- **Accuracy** = `(TP + TN) / everything`: how often it's right overall.
+- **Precision** = `TP / (TP + FP)`: when it says "bot", how often is it right? *Trust in an alarm.*
+- **Recall** = `TP / (TP + FN)`: of all real bots, how many did it catch? *Coverage.*
+- **F1** = `2 × precision × recall / (precision + recall)`: one number that's high only when both are high.
+
+For an engineer: precision is "how many of my pages were real incidents", recall is "how many real incidents paged
+me".
+
+## 4. Mental model
+
+**The model gives a score. The threshold turns it into an action. Moving the threshold trades one error for the
+other.**
+
+```
+ score:   0.0 ─────────────────────────────────────── 1.0
+ humans:  hhhhhhhhhhhhhhhhhhhhhh hhh h    h
+ bots:                       b  bb bbbbbbbbbbbbbbbbbb
+                              ▲
+                          threshold
+      left: "human"               right: "bot"
+ move ◀ : catch more bots (recall ↑), block more humans (precision ↓)
+ move ▶ : block fewer humans (precision ↑), miss more bots (recall ↓)
+```
+
+There's no setting that removes both errors unless the two groups don't overlap. The question is which mistakes you
+would rather make.
+
+## 5. How it works internally
+
+**The confusion matrix** counts outcomes on a labeled set:
+
+```
+                   actual bot     actual human
+ predicted bot         TP              FP
+ predicted human       FN              TN
+```
+
+Using the validation set from lesson 1.1.10, with 147 bots out of 300 (the code example):
+
+| | actual bot | actual human |
+|---|---|---|
+| predicted bot | TP = 136 | FP = 29 |
+| predicted human | FN = 11 | TN = 124 |
+
+- Accuracy = (136 + 124) / 300 = **0.867**, the 86.7% from lesson 1.1.10.
+- Precision = 136 / (136 + 29) = **0.824**.
+- Recall = 136 / (136 + 11) = **0.925**.
+- F1 = 2 × 0.824 × 0.925 / (0.824 + 0.925) = **0.872**.
+
+**Why accuracy fails on imbalanced data.** Accuracy is dominated by the majority class. If 96% of signups are human,
+a function that returns `"human"` every time is 96% accurate and catches zero bots. Precision and recall ignore the
+true negatives, so they stay focused on the rare class.
+
+**Why precision drops when positives are rare.** Precision depends on the **base rate**: how common positives are.
+With a fixed false-positive *rate*, the number of false alarms scales with the number of humans. When bots go from
+half of traffic to 3%, the same model produces about the same share of false alarms among a much bigger pool of
+humans, while there are far fewer real bots to catch. Recall, which only looks at real bots, barely changes.
+
+**Thresholds.** Most models output a score, like a probability or the share of neighbors that are bots. You pick a
+threshold `t` and predict "bot" when `score >= t`. Each threshold gives a different confusion matrix. A **precision-recall
+curve** plots precision against recall for every threshold, and an **ROC curve** plots the true-positive rate
+(recall) against the false-positive rate. The areas under them (PR-AUC, ROC-AUC) summarize a model across all
+thresholds. They're useful for comparing models, but you still deploy one threshold.
+
+**Choosing the threshold with costs.** Give each error a cost and pick the threshold with the lowest total:
+
+```
+total cost = FN × (missed bot cost) + FP × (blocked human cost)
+```
+
+The costs come from the product, not the model: fraud losses, support tickets, lost signups, manual review time.
+
+<Callout type="practice">
+  Pick the positive class to be the rare, actionable thing (bot, fraud, bug), and always report the confusion
+  matrix counts next to any ratio. "Precision 0.94" sounds great until you see it came from 18 flagged signups.
+</Callout>
+
+**Beyond binary.** With more than two classes, you compute precision and recall per class, then average them.
+**Macro** averaging weights every class equally, which highlights rare classes. **Micro** averaging pools all
+predictions, which is dominated by common classes. Regression tasks use error metrics like mean absolute error
+instead (lesson 1.1.6).
+
+## 6. Visual explanation
+
+The confusion matrix with what each metric reads:
+
+```
+                  actual bot   actual human
+                ┌────────────┬────────────┐
+ predicted bot  │  TP  136   │  FP   29   │ ─▶ precision
+                ├────────────┼────────────┤    = TP/(TP+FP)
+ predicted hum  │  FN   11   │  TN  124   │
+                └────────────┴────────────┘
+                      │
+                      ▼  recall = TP/(TP+FN)
+ accuracy = (TP+TN)/all: all four cells
+```
+
+The same model on balanced validation data vs production traffic (code example):
+
+```
+                    validation (49% bots)   production (4% bots)
+ accuracy                  0.867                  0.918
+ precision                 0.824                  0.299
+ recall                    0.925                  0.759
+ always "human" acc        0.510                  0.959
+```
+
+Threshold sweep on production, cost = $20 per missed bot + $5 per blocked human:
+
+```
+ t     flagged  precision  recall   cost
+ 0.2    1359      0.120     0.803   $6,780  ██████████████
+ 0.4     970      0.164     0.783   $4,935  ██████████
+ 0.6     515      0.299     0.759   $2,785  ██████
+ 0.8     305      0.469     0.704   $2,010  ████      ◀ lowest
+ 1.0      18      0.944     0.084   $3,725  ████████
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Metric equivalent |
+|---|---|
+| Alerting: pages that were real incidents | Precision |
+| Alerting: incidents that paged someone | Recall |
+| Alert fatigue from noisy monitors | Low precision |
+| An outage nobody got paged for | A false negative |
+| Tuning an alert threshold on a latency graph | Choosing the decision threshold |
+| Static analysis: true bugs among warnings | Precision |
+| Static analysis: bugs it finds at all | Recall |
+| Uptime of 99.9% that hides one critical endpoint being down | Accuracy on imbalanced data |
+| SLOs set from business impact | Thresholds chosen from error costs |
+
+For **backend engineers**, the threshold is config: store it alongside the model version, log the score, not just the
+decision, and you can change the threshold without retraining. For **frontend engineers**, precision and recall shape
+UX: a spam filter with low precision hides real messages; low recall fills the inbox. For **distributed systems**,
+health checks are classifiers too: aggressive checks (high recall) kill healthy nodes (low precision).
+
+## 8. Code example
+
+Reuses lesson 1.1.10's generator and its chosen 5-NN model. It builds a confusion matrix on the validation set,
+evaluates on an imbalanced production sample where 3% of signups are bots, and sweeps thresholds with a cost model.
+Run it with `node --experimental-strip-types metrics.ts` (Node 22.6+).
+
+```ts
+// mulberry32: a public-domain seeded random number generator by Tommy Ettinger.
+function mulberry32(seed: number) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+type Example = { x: number[]; y: number };
+const rand = mulberry32(7);
+
+// Same generator as lesson 1.1.10, with the share of bots and of wrong labels as parameters.
+function signup(botRate = 0.5, noise = 0.1): Example {
+  const bot = rand() < botRate;
+  const s = bot ? 1 + rand() * 5 : 3.5 + rand() * 16;
+  const k = bot ? Math.floor(rand() * 10) : 5 + Math.floor(rand() * 40);
+  const noisy = rand() < noise;
+  return { x: [+s.toFixed(1), k], y: bot !== noisy ? 1 : 0 };
+}
+const make = (n: number, botRate = 0.5, noise = 0.1) => Array.from({ length: n }, () => signup(botRate, noise));
+const train = make(20), validation = make(300);
+
+// The chosen model from lesson 1.1.10: 5-nearest neighbors. Its score is the share of neighbors that are bots.
+const dist = (a: number[], b: number[]) => Math.hypot((a[0] - b[0]) / 5, (a[1] - b[1]) / 10);
+const score = (x: number[]) =>
+  [...train].sort((a, b) => dist(a.x, x) - dist(b.x, x)).slice(0, 5).filter((e) => e.y === 1).length / 5;
+
+// ---------- The confusion matrix and the metrics built from it ----------
+function confusion(data: Example[], predict: (x: number[]) => number) {
+  const m = { tp: 0, fp: 0, fn: 0, tn: 0 };
+  for (const e of data) {
+    const p = predict(e.x);
+    if (p === 1 && e.y === 1) m.tp++;
+    else if (p === 1) m.fp++;
+    else if (e.y === 1) m.fn++;
+    else m.tn++;
+  }
+  return m;
+}
+const safe = (a: number, b: number) => (b === 0 ? 0 : a / b);
+function metrics({ tp, fp, fn, tn }: ReturnType<typeof confusion>) {
+  const precision = safe(tp, tp + fp), recall = safe(tp, tp + fn);
+  return {
+    accuracy: (tp + tn) / (tp + fp + fn + tn),
+    precision,
+    recall,
+    f1: safe(2 * precision * recall, precision + recall),
+  };
+}
+const fmt = (o: Record<string, number>) =>
+  Object.entries(o).map(([k, v]) => `${k} ${Number.isInteger(v) ? v : v.toFixed(3)}`).join('  ');
+
+const atHalf = (x: number[]) => (score(x) > 0.5 ? 1 : 0);
+const cm = confusion(validation, atHalf);
+console.log(`validation (${validation.filter((e) => e.y).length} bots / 300):`);
+console.log(`  ${fmt(cm)}`);
+console.log(`  ${fmt(metrics(cm))}`);
+
+// ---------- Imbalanced data: 3% of production signups are bots, labeled by confirmed abuse (1% label errors) ----------
+const production = make(5000, 0.03, 0.01);
+const bots = production.filter((e) => e.y === 1).length;
+console.log(`\nproduction sample: ${bots} labeled bots / ${production.length}`);
+for (const [name, predict] of [['always "human"', () => 0], ['5-NN at 0.5', atHalf]] as const) {
+  const c = confusion(production, predict);
+  console.log(`  ${name.padEnd(15)} ${fmt(c)}  ${fmt(metrics(c))}`);
+}
+
+// ---------- The threshold is a product decision ----------
+// A missed bot costs $20 in fraud; blocking a real human costs $5 in lost signups and support time.
+console.log('\nthreshold sweep on production (flag as bot when score >= t):');
+for (const t of [0.2, 0.4, 0.6, 0.8, 1.0]) {
+  const c = confusion(production, (x) => (score(x) >= t ? 1 : 0));
+  const { precision, recall } = metrics(c);
+  const cost = c.fn * 20 + c.fp * 5;
+  console.log(`  t=${t.toFixed(1)}  flagged ${String(c.tp + c.fp).padStart(4)}  precision ${precision.toFixed(3)}  recall ${recall.toFixed(3)}  cost $${cost}`);
+}
+```
+
+Output:
+
+```
+validation (147 bots / 300):
+  tp 136  fp 29  fn 11  tn 124
+  accuracy 0.867  precision 0.824  recall 0.925  f1 0.872
+
+production sample: 203 labeled bots / 5000
+  always "human"  tp 0  fp 0  fn 203  tn 4797  accuracy 0.959  precision 0  recall 0  f1 0
+  5-NN at 0.5     tp 154  fp 361  fn 49  tn 4436  accuracy 0.918  precision 0.299  recall 0.759  f1 0.429
+
+threshold sweep on production (flag as bot when score >= t):
+  t=0.2  flagged 1359  precision 0.120  recall 0.803  cost $6780
+  t=0.4  flagged  970  precision 0.164  recall 0.783  cost $4935
+  t=0.6  flagged  515  precision 0.299  recall 0.759  cost $2785
+  t=0.8  flagged  305  precision 0.469  recall 0.704  cost $2010
+  t=1.0  flagged   18  precision 0.944  recall 0.084  cost $3725
+```
+
+What to take from it:
+
+- **The validation numbers match lesson 1.1.10.** Accuracy 0.867 is the same 86.7%, now split into precision 0.824
+  and recall 0.925: this model errs on the side of flagging.
+- **"Always human" beats the model on accuracy in production:** 0.959 vs 0.918, while catching zero bots. On
+  imbalanced data, accuracy is the wrong headline.
+- **Precision collapses with the base rate.** The model's precision falls from 0.824 on validation to 0.299 in
+  production. Recall only drops from 0.925 to 0.759. Seven in ten blocked signups are now real humans.
+- **The base rate includes label noise.** Bots are 3% of traffic, but 203 of 5,000 are labeled bots (4.1%) because
+  1% of labels are wrong in both directions.
+- **The cheapest threshold isn't 0.5.** Scores come in fifths (0, 0.2, … 1.0), so "above 0.5" is the `t = 0.6` row.
+  With these costs, `t = 0.8` is cheapest at $2,010. The strictest threshold, `t = 1.0`, has 0.944 precision but
+  catches only 8.4% of bots and costs more.
+
+## 9. Real-world example
+
+**An illustrative scenario: a payments team evaluates a fraud model.** Fraud is 0.5% of transactions. The vendor's
+report says "99.4% accuracy".
+
+How an engineer who knows the metrics reviews it:
+
+1. **Ask for the confusion matrix.** Always predicting "legit" would already be 99.5% accurate, so 99.4% could mean
+   the model is worse than doing nothing.
+2. **Evaluate on data with production's base rate.** A demo set with 50% fraud makes precision look far better than
+   it will be.
+3. **Get the costs.** A missed fraud loses the transaction amount plus a chargeback fee. A false positive declines a
+   real customer, who may not come back. A manual review costs analyst time.
+4. **Pick the operating point.** Choose a threshold for automatic declines that keeps precision high, and a lower one
+   that sends borderline cases to manual review, sized to the review team's capacity.
+5. **Monitor both.** Track precision from review outcomes and recall from chargebacks that arrive weeks later, and
+   re-check the threshold when fraud patterns shift.
+
+<Callout type="opinion">
+  A metric without a decision attached is trivia. Before building an evaluation, write down which action the model's
+  output triggers and what each kind of mistake costs. That usually tells you which metric to optimize.
+</Callout>
+
+## 10. Common mistakes
+
+- **Reporting accuracy on imbalanced data.** Compare against the "always majority" baseline every time.
+- **Evaluating on a balanced set and expecting the same precision in production.** Precision depends on the base
+  rate. Evaluate at the real rate, or recompute precision for it.
+- **Leaving the threshold at 0.5.** It's a default, not a decision. Choose it from costs or capacity.
+- **Optimizing F1 by habit.** F1 weights precision and recall equally. If a miss costs 10× a false alarm, F1 is
+  optimizing the wrong thing.
+- **Reporting ratios without counts.** Precision on 18 predictions has huge uncertainty.
+- **Picking the threshold on the test set.** Thresholds are settings. Choose them on validation data (lesson 1.1.10).
+- **Macro vs micro confusion.** In multi-class problems, micro-averaged scores can look fine while a rare class is
+  never predicted.
+
+## 11. Limitations
+
+- **Metrics need labels, and labels are noisy and late.** Fraud labels arrive weeks later; some bots are never
+  confirmed. Measured recall is recall against the labels you have.
+- **Offline metrics estimate, they don't guarantee.** Traffic changes, attackers adapt, and base rates drift.
+- **Single-number summaries hide trade-offs.** AUC and F1 compress a curve into one number, and two models with the
+  same score can behave differently at your operating threshold.
+- **Costs are estimates.** The cost of turning away a real user is hard to measure, so treat threshold choice as a
+  decision to revisit, not a calculation to trust.
+- **Classification metrics don't cover everything.** Generated text, rankings and calibrated probabilities need other
+  measures (Seasons 3 and 6).
+
+## 12. When to use it
+
+- **Any classifier:** report the confusion matrix, precision and recall for the class you care about, and the
+  majority baseline.
+- **Rare-event detection:** fraud, abuse, anomaly detection, bug triage, content moderation. Lead with precision and
+  recall, and use PR curves over ROC curves (Saito & Rehmsmeier, 2015, in the sources).
+- **Choosing a threshold:** use explicit costs, or capacity ("reviewers can handle 300 cases a day").
+- **Comparing models or prompts:** compare at the threshold you'll deploy, on data with production's class balance.
+- **LLM classification tasks:** when you use an LLM to label tickets or detect PII, the same metrics apply to its
+  outputs (Season 6).
+
+## 13. When NOT to use it
+
+- **Regression problems.** Predicting a number (latency, price) uses error metrics like mean absolute error, not a
+  confusion matrix.
+- **Ranking and retrieval.** "Did the right document appear in the top 5?" needs ranking metrics like recall@k and
+  MRR (Season 3), which build on these ideas.
+- **Open-ended generation.** You can't build a confusion matrix for a summary. Use rubric-based or pairwise evals
+  (Season 6).
+- **When the score itself is the product.** If downstream code uses the probability (for example, expected loss =
+  probability × amount), you also need calibration: whether "0.8" really means 80%.
+
+## 14. Interview explanation (30 seconds)
+
+> A confusion matrix counts true positives, false positives, false negatives and true negatives. Accuracy is the share
+> correct overall, which is misleading on imbalanced data, because always predicting the majority class scores high.
+> Precision is the share of positive predictions that are right, recall is the share of actual positives you catch,
+> and F1 is their harmonic mean. Models output scores, and the threshold trades precision against recall. I choose it
+> from the business cost of each error type, on validation data with the production base rate.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start with the confusion matrix and define positive as the rare, actionable class. Every classification metric is a
+ratio of its four cells.
+
+Explain why accuracy fails. In a fraud problem with 0.5% fraud, predicting "legit" always is 99.5% accurate. In a bot
+detector I built, "always human" scored 0.959 accuracy on production-like data, higher than the real model's 0.918,
+while catching nothing. Always compare against that baseline.
+
+Define precision and recall with their product meaning: precision is how much you can trust an alarm, recall is how
+much of the problem you cover. F1 combines them when both matter equally, but that's rarely the actual business
+trade-off.
+
+Discuss base rates. Precision depends on class balance and recall doesn't. The same bot model had 0.824 precision on
+a balanced validation set and 0.299 on traffic with 3% bots, because false alarms scale with the number of negatives.
+So evaluate at production's base rate or you'll overestimate precision.
+
+Cover thresholds. The model outputs scores, and each threshold gives a different confusion matrix. PR and ROC curves
+show all of them; AUC summarizes, and PR curves are more informative when positives are rare. To deploy, assign costs
+to false negatives and false positives, compute total cost per threshold on validation data, and choose the minimum,
+or choose by capacity when humans review flagged items. Store the threshold as config next to the model version.
+
+Close with multi-class macro vs micro averaging, and note that labels are delayed and noisy, so production monitoring
+of these metrics is part of the job.
+
+## 16. Hands-on exercise
+
+Run the code example, then:
+
+1. **By hand.** A fraud model on 10,000 transactions: TP = 40, FP = 160, FN = 10, TN = 9,790. Compute accuracy,
+   precision, recall and F1. Would you ship it for automatic declines?
+2. **Change the costs.** A missed bot now costs $100 instead of $20. Add `t = 0.0` to the sweep. Which threshold is
+   cheapest now, and what does flagging everything cost?
+3. **Change the base rate.** Change the production sample to `make(5000, 0.3, 0.01)`, so 30% of signups are bots.
+   What happens to accuracy for "always human", and to the model's precision and recall at 0.5?
+
+<Answer label="Answers from running it">
+  1. Accuracy = (40 + 9,790) / 10,000 = **0.983**, below the 0.995 you'd get by never predicting fraud. Precision =
+     40 / 200 = **0.20**, recall = 40 / 50 = **0.80**, F1 = 2 × 0.2 × 0.8 / 1.0 = **0.32**. Four out of five declines
+     would hit real customers, so not for automatic declines. It could work as a filter for manual review.
+  2. At $100 per missed bot, the cheapest is **`t = 0.6` at $6,705**, just ahead of `t = 0.8` at $6,810. Flagging
+     everything (`t = 0.0`) reaches recall 1.000 with precision 0.041, and costs $23,985 from blocking 4,797
+     labeled humans. When misses get more expensive, the best threshold moves down.
+  3. "Always human" accuracy drops to **0.692**. The model at 0.5 gets precision **0.843**, recall **0.979**, F1
+     0.906 and accuracy 0.937. Precision jumps from 0.299 to 0.843 with the same model, because there are far more
+     real bots relative to humans. Recall changes much less, since it only looks at bots.
+</Answer>
+
+## 17. Challenge
+
+Build a small **evaluation report** module for any binary classifier.
+
+1. `evaluate(scores, labels)` returns, for every distinct score used as a threshold, the confusion matrix, precision,
+   recall and false-positive rate.
+2. Compute **PR-AUC** and **ROC-AUC** with the trapezoid rule. Check that ROC-AUC equals the probability that a random
+   bot scores higher than a random human (count pairs, ties count half).
+3. `chooseThreshold(report, { fnCost, fpCost })` and `chooseThreshold(report, { maxFlagged })` for capacity limits.
+4. Train the lesson 1.1.10 polynomial model (`lambda = 0.001`), which outputs smooth probabilities, and compare it with
+   5-NN on the production sample: AUCs, and precision at 70% recall.
+5. Recompute precision for a different base rate without re-running the model, using recall and the false-positive
+   rate. Check it against exercise 3.
+
+<Answer label="Hints">
+  Sort by score descending and walk down, moving one example at a time from "predicted human" to "predicted bot"; that
+  gives all thresholds in one pass. 5-NN only has six distinct scores, so its curves have six points and precision at
+  exactly 70% recall may not exist: report the best precision at recall of at least 70%. For step 5, with base rate
+  `p`: `precision = recall × p / (recall × p + FPR × (1 − p))`. Your answer will be close but not exact, because the
+  label noise changes the effective base rate.
+</Answer>
+
+## 18. Sources and acknowledgements
+
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

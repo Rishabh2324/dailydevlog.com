@@ -30,10 +30,22 @@ references:
     tier: optional
     level: Advanced
     why: The rigorous treatment of generative classifiers, Bayes' rule and Naive Bayes, if you want the math behind the intuition here.
+  - title: 'Mulberry32 PRNG'
+    source: Tommy Ettinger (GitHub gist)
+    url: https://gist.github.com/tommyettinger/46a874533244883189143505d203312c
+    tier: optional
+    level: Advanced
+    why: The original public-domain source of the mulberry32 seeded random number generator used in this lesson's code.
+  - title: 'Generative Adversarial Nets'
+    source: Goodfellow et al., NeurIPS (2014)
+    url: https://arxiv.org/abs/1406.2661
+    tier: optional
+    level: Advanced
+    why: Introduced the counterfeiters-vs-police analogy for generative and discriminative models, which this lesson's forger and border-guard mental model adapts.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -92,7 +104,8 @@ In probability terms, with `x` as the input and `y` as the label:
 - The **forger** has studied the real thing so thoroughly that they can produce convincing new copies. They can also
   tell when something looks fake, and they can sort items by asking "which original does this resemble?"
 
-Forging is much harder than guarding. That's why generative models typically need far more data and compute, and
+The analogy adapts the counterfeiters-vs-police picture from Goodfellow et al.'s 2014 GAN paper, which pits a
+generative model against a discriminative one. Forging is much harder than guarding. That's why generative models typically need far more data and compute, and
 why LLMs are so large.
 
 ## 5. How it works internally
@@ -251,6 +264,7 @@ const classifyGenerative = (m: Generative, text: string): Label => {
 };
 
 // Use 2: GENERATE new text by sampling words from a label's distribution.
+// mulberry32: a public-domain seeded random number generator by Tommy Ettinger.
 function mulberry32(seed: number) {
   return () => {
     seed = (seed + 0x6d2b79f5) | 0;
@@ -472,6 +486,6 @@ Reproduce the **data-size trade-off** and build a **hybrid pipeline**.
   product owner can decide which mistake costs more.
 </Answer>
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

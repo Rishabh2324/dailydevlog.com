@@ -2,6 +2,7 @@
 import Badge from './Badge.astro';
 import { formatDate, tagVariant, difficultyVariant } from '../lib/format';
 import type { ActivityItem } from '../lib/activity';
+import { COURSES } from '../lib/courses';
 
 interface Props {
   item: ActivityItem;
@@ -12,13 +13,15 @@ const { item } = Astro.props;
 const kindLabel: Record<ActivityItem['kind'], string> = {
   dsa: 'DSA',
   'daily-log': 'Daily Log',
-  'ai-course': 'AI Course',
+  'ai-course': COURSES['ai-course'].navLabel,
+  'ai-native-engineering': COURSES['ai-native-engineering'].navLabel,
 };
 
 const kindColor: Record<ActivityItem['kind'], string> = {
   dsa: 'text-accent-blue',
   'daily-log': 'text-accent-purple',
   'ai-course': 'text-brand-green-dark dark:text-brand-green',
+  'ai-native-engineering': 'text-accent-orange',
 };
 ---
 

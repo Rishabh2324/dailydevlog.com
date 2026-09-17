@@ -1,0 +1,576 @@
+---
+topic: '1.1.13'
+date: 2026-09-17
+summary: Language model loss falls along smooth, predictable power laws as parameters, data and compute grow, which let labs plan huge training runs from small ones; the laws also explain why models got bigger, why they now train on far more data than "optimal", and why the frontier is shifting toward inference-time compute.
+estimatedMinutes: 40
+tags: [Foundations, Scaling, Compute, Training]
+prerequisites: ['1.1.12', '1.1.10']
+lastVerified: 2026-09-17
+references:
+  - title: Scaling Laws for Neural Language Models
+    source: Kaplan et al., OpenAI (2020)
+    url: https://arxiv.org/abs/2001.08361
+    tier: must
+    level: Advanced
+    why: The original result. Section 1.2 summarizes the power laws in parameters, data and compute; read the summary and look at Figure 1 even if you skip the rest.
+  - title: Training Compute-Optimal Large Language Models (Chinchilla)
+    source: Hoffmann et al., DeepMind (2022)
+    url: https://arxiv.org/abs/2203.15556
+    tier: must
+    level: Advanced
+    why: Shows parameters and training tokens should grow together, and demonstrates it by beating the 4× larger Gopher with the same compute.
+  - title: 'Chinchilla Scaling: A replication attempt'
+    source: Besiroglu, Erdil, Barnett & You, Epoch AI (2024)
+    url: https://arxiv.org/abs/2404.10102
+    tier: should
+    level: Advanced
+    why: Re-fits Chinchilla's parametric loss and finds the published constants were off; the corrected fit, used in this lesson's code, implies about 20 tokens per parameter.
+  - title: Introducing Meta Llama 3
+    source: Meta AI blog (2024)
+    url: https://ai.meta.com/blog/meta-llama-3/
+    tier: should
+    level: Beginner
+    why: A real example of training far past the compute-optimal point, 15T tokens for an 8B model, and the note that performance kept improving log-linearly.
+  - title: Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters
+    source: Snell, Lee, Xu & Kumar (2024)
+    url: https://arxiv.org/abs/2408.03314
+    tier: optional
+    level: Advanced
+    why: Evidence that spending more compute at inference time can beat a much larger model on some tasks, the scaling direction lesson 1.4.9 covers.
+---
+
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
+
+## 1. Why does this exist?
+
+Lesson 1.1.9 put Llama 2 7B's pretraining at about 8 × 10²² FLOPs, and lesson 1.1.12 showed that takes over a hundred
+thousand GPU hours. The largest runs today cost far more. Nobody commits that much money on a hunch. Before a big
+run, a lab needs to answer: **how good will this model be, and what's the best way to spend the budget?**
+
+Scaling laws are the answer. Researchers trained many small models and found that loss falls along **smooth,
+predictable curves** as you add parameters, data and compute. Fit the curve on cheap runs, extrapolate to the
+expensive one. That predictability is a big part of why the industry kept building bigger models: the returns were
+forecastable.
+
+## 2. What problem does it solve?
+
+Scaling laws answer **"what will more resources buy, and how should I split them?"**
+
+- **Forecasting.** Predict a large model's loss from small experiments before spending the budget.
+- **Allocation.** For a fixed compute budget, choose model size vs amount of training data.
+- **Diminishing returns.** Quantify how much each 10× buys, so you know when scaling stops paying.
+- **Engineering trade-offs.** Balance training cost against inference cost when choosing a model size.
+- **Reading the industry.** Explain why models went from "bigger" to "trained longer" to "think longer at inference".
+
+## 3. Simple explanation
+
+**Every 10× more resources removes about the same fraction of the remaining error, until you approach a floor.**
+
+That's a **power law**: `loss ≈ floor + a / N^α`, where `N` is parameters (or training tokens). Plotted with both
+axes on a log scale, it's a straight line. Three findings matter:
+
+1. **Loss improves predictably** with parameters, training tokens and compute, across many orders of magnitude.
+2. **Returns diminish.** Each 10× gives a smaller absolute gain than the last one. Progress costs exponentially more.
+3. **Parameters and data should grow together.** DeepMind's Chinchilla work found that for a fixed compute budget,
+   the best model uses about **20 training tokens per parameter**. Many earlier models were too big and undertrained.
+
+Lower loss here means better next-token prediction (lesson 1.1.6). It tends to track better downstream abilities,
+but not perfectly.
+
+## 4. Mental model
+
+**Scaling is like performance tuning a hot path: each round of work buys a smaller share of what's left.**
+
+```
+ loss
+ 2.6 │█
+     │ ▇
+ 2.2 │   ▅
+     │      ▃
+ 2.0 │          ▂
+ 1.9 │                ▁                ▁
+ 1.8 │- - - - - - - - - - - - - - - - - - - - - floor (E)
+     └──────────────────────────────────────────▶
+      100M    1B      10B      100B      1T   params
+      (each step is 10× more, with unlimited data)
+```
+
+The gap between the curve and the floor shrinks by the same **fraction** for every 10×. The floor is the loss that
+no model can remove: the genuine unpredictability of text.
+
+## 5. How it works internally
+
+**Kaplan et al. (2020).** OpenAI trained transformer language models across a wide range of sizes and found, for
+non-embedding parameters `N`, dataset size `D` and compute `C`, power laws such as:
+
+- `L(N) = (N_c / N)^0.076`, with `N_c ≈ 8.8 × 10¹³` parameters
+- `L(D) = (D_c / D)^0.095`, with `D_c ≈ 5.4 × 10¹³` tokens
+
+The trends held across **six orders of magnitude in model size** and eight in compute. Architecture details like
+depth vs width mattered much less than scale. Their recommended allocation put most extra compute into bigger
+models (`N ∝ C^0.73`), with relatively little extra data.
+
+**Chinchilla (Hoffmann et al., 2022).** DeepMind trained over 400 models and fit a loss with separate terms for
+parameters and data:
+
+```
+L(N, D) = E + A / N^α + B / D^β
+```
+
+- `E` is the irreducible floor.
+- `A / N^α` is the error from a model that's too small.
+- `B / D^β` is the error from training on too few tokens.
+
+Minimizing that loss for a fixed budget `C ≈ 6ND` (lesson 1.1.9) says: **scale parameters and tokens equally**.
+Double the model, double the data. The paper's demonstration: **Chinchilla**, 70B parameters on 1.4T tokens (20
+tokens per parameter), used the same compute as **Gopher**, 280B parameters on 300B tokens, and beat it broadly,
+including 67.5% vs 60.0% on the MMLU benchmark.
+
+<Callout type="fact" title="Scaling-law constants are estimates">
+  In 2024, Epoch AI re-fit Chinchilla's formula using data extracted from the paper's figures and found the published constants didn't match
+  the data or the paper's other two methods. Their corrected fit, used in the code below, gives about 20 tokens per
+  parameter. The original constants imply a much higher ratio that grows with budget. The headline conclusion
+  survived; the exact numbers moved. Treat any fitted law as a forecast with error bars.
+</Callout>
+
+**Compute-optimal isn't cost-optimal.** Chinchilla minimizes *training* compute for a target loss. But lesson 1.1.9
+showed inference repeats for every token served, and costs about `2N` FLOPs per token. A smaller model trained on
+**more** tokens than "optimal" costs more to train but less to serve, forever. So modern open models train far past
+20 tokens per parameter:
+
+| Model | Parameters | Training tokens | Tokens per parameter |
+|---|---|---|---|
+| Chinchilla | 70B | 1.4T | 20 |
+| Llama 2 7B | 6.74B | 2T | about 297 |
+| Llama 3 8B | 8B | over 15T | about 1,875 |
+
+Meta noted that Chinchilla-optimal for an 8B model is about 200B tokens, and that both Llama 3 8B and 70B kept
+improving log-linearly up to 15T tokens.
+
+**Why it's "not the whole story" now.**
+
+- **Data limits.** High-quality text is finite, so data quality, filtering and synthetic data matter more at the top.
+- **Loss isn't capability.** Smooth loss curves can hide abilities that appear abruptly on specific benchmarks, and
+  benchmarks can be contaminated (lesson 1.1.10).
+- **Post-training** (instruction tuning, preference tuning, reinforcement learning; lesson 1.4) changes usefulness a
+  lot without changing parameter count.
+- **Test-time compute.** Letting a model generate more reasoning tokens before answering is another scaling axis.
+  Snell et al. (2024) found that, on some tasks, spending inference compute well could beat a model 14× larger
+  (lesson 1.4.9).
+
+<Callout type="emerging">
+  The field increasingly talks about three scaling axes: pretraining compute, post-training (especially reinforcement
+  learning) compute, and inference-time compute. How they trade off is an active research question, and the
+  numbers change quickly.
+</Callout>
+
+## 6. Visual explanation
+
+Why a power law is a straight line on log-log axes:
+
+```
+ linear axes                     log-log axes
+ loss                            log(loss − floor)
+  │█                              │▇
+  │ █                             │  ▆
+  │  ▆                            │    ▅
+  │    ▃                          │      ▄
+  │       ▂▁  ▁  ▁  ▁             │        ▃
+  └──────────────────▶ N          │          ▂
+   "flattening out"               └────────────▶ log N
+                                   same slope every 10×
+```
+
+Same compute, different split (code example, corrected fit):
+
+```
+            params  tokens  tokens/param  predicted loss
+ Gopher      280B    300B        1.1          2.000
+ Chinchilla   70B    1.4T       20.0          1.974  ◀ better
+```
+
+The deployment trade-off for Llama 2 7B's budget:
+
+```
+ option A: compute-optimal for the same loss
+   19.1B params ─ train 4.28e22 FLOPs ─ serve 2×19.1B per token
+ option B: what Meta did
+    6.7B params ─ train 8.09e22 FLOPs ─ serve 2×6.7B per token
+                       ▲ 89% more training     ▲ 65% cheaper
+ B wins once the model generates more than ~1.5 trillion tokens
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Scaling-law equivalent |
+|---|---|
+| Load testing small, extrapolating to production traffic | Fitting laws on small runs to forecast a big one |
+| Amdahl's law and diminishing returns on optimization | Each 10× buys a smaller absolute loss drop |
+| Capacity planning curves | Compute-optimal allocation of parameters vs tokens |
+| Spending more build time to make the binary faster | Overtraining a small model to cut inference cost |
+| Total cost of ownership over a service's life | Training cost + lifetime inference cost |
+| Benchmarks that stop predicting user experience | Loss improvements that don't map to capabilities |
+| Caching or precomputing vs computing per request | Pretraining compute vs inference-time compute |
+
+For **backend engineers**, the practical output is model choice: a smaller model trained on more data often gives
+you most of the quality at a fraction of the serving cost. For **engineering leaders**, scaling laws explain why
+frontier models keep improving yet each generation costs much more. For **distributed systems** people, they're why
+training clusters keep growing.
+
+## 8. Code example
+
+A scaling-law calculator using the Chinchilla loss form with Epoch AI's corrected constants (and the original ones for
+comparison). It shows diminishing returns, compares Gopher and Chinchilla, finds the compute-optimal split for several
+budgets, and works out why Llama 2 7B was trained past that point. Run it with
+`node --experimental-strip-types scaling.ts` (Node 22.6+).
+
+```ts
+// Chinchilla-style loss: L(N, D) = E + A / N^alpha + B / D^beta, N = parameters, D = training tokens.
+type Fit = { E: number; A: number; B: number; alpha: number; beta: number };
+const replication: Fit = { E: 1.8172, A: 482.01, B: 2085.43, alpha: 0.3478, beta: 0.3658 }; // Besiroglu et al. 2024
+const original: Fit = { E: 1.6934, A: 406.4, B: 410.7, alpha: 0.3392, beta: 0.2849 }; // Hoffmann et al. 2022
+const loss = (f: Fit, N: number, D: number) => f.E + f.A / N ** f.alpha + f.B / D ** f.beta;
+const flops = (N: number, D: number) => 6 * N * D; // training compute rule from lesson 1.1.9
+const sci = (x: number, d = 2) => x.toExponential(d).replace('e+', 'e');
+const big = (x: number) => (x >= 1e12 ? `${(x / 1e12).toFixed(1)}T` : x >= 1e9 ? `${(x / 1e9).toFixed(1)}B` : `${(x / 1e6).toFixed(0)}M`);
+const f = replication;
+
+// 1. Power law: every 10× more parameters removes the same *fraction* of the reducible loss.
+console.log('params (unlimited data)  loss   above the floor E');
+for (const N of [1e8, 1e9, 1e10, 1e11, 1e12]) {
+  const l = f.E + f.A / N ** f.alpha;
+  console.log(`  ${big(N).padStart(6)}                 ${l.toFixed(3)}  ${(l - f.E).toFixed(3)}`);
+}
+console.log(`  each 10× more params keeps ${(10 ** -f.alpha * 100).toFixed(1)}% of the parameter term`);
+
+// 2. Similar compute, different split: Gopher vs Chinchilla.
+console.log('\nmodel        params  tokens  tokens/param  compute  predicted loss');
+for (const m of [{ name: 'Gopher', N: 280e9, D: 300e9 }, { name: 'Chinchilla', N: 70e9, D: 1.4e12 }])
+  console.log(`  ${m.name.padEnd(10)} ${big(m.N).padStart(6)}  ${big(m.D).padStart(6)}  ${(m.D / m.N).toFixed(1).padStart(12)}  ${sci(flops(m.N, m.D))}  ${loss(f, m.N, m.D).toFixed(3)}`);
+
+// 3. Compute-optimal split: for a budget C, try every model size and spend the rest of the budget on tokens.
+function optimal(fit: Fit, C: number) {
+  let best = { N: 0, D: 0, L: Infinity };
+  for (let logN = 6; logN <= 13; logN += 0.001) {
+    const N = 10 ** logN, D = C / (6 * N), L = loss(fit, N, D);
+    if (L < best.L) best = { N, D, L };
+  }
+  return best;
+}
+console.log('\ncompute   best params  best tokens  tokens/param  loss   (original fit: tokens/param)');
+for (const C of [1e20, 1e22, 1e24, 1e26]) {
+  const o = optimal(f, C), h = optimal(original, C);
+  console.log(`  ${sci(C, 0)}  ${big(o.N).padStart(11)}  ${big(o.D).padStart(11)}  ${(o.D / o.N).toFixed(0).padStart(12)}  ${o.L.toFixed(3)}  ${(h.D / h.N).toFixed(0).padStart(6)}`);
+}
+
+// 4. Why real models "overtrain": Llama 2 7B used 2T tokens, far past the compute-optimal split.
+const llama = { N: 6.74e9, D: 2e12 };
+const C = flops(llama.N, llama.D), opt = optimal(f, C), target = loss(f, llama.N, llama.D);
+console.log(`\nLlama 2 7B: ${sci(C)} FLOPs, ${(llama.D / llama.N).toFixed(0)} tokens/param, predicted loss ${target.toFixed(3)}`);
+console.log(`  compute-optimal at that budget: ${big(opt.N)} params on ${big(opt.D)} tokens, loss ${opt.L.toFixed(3)}`);
+
+// Smallest compute-optimal budget that reaches the 7B model's loss (binary search on a log scale).
+let lo = C / 100, hi = C;
+for (let i = 0; i < 60; i++) { const mid = Math.sqrt(lo * hi); optimal(f, mid).L > target ? (lo = mid) : (hi = mid); }
+const match = optimal(f, hi);
+console.log(`  same loss, compute-optimal: ${big(match.N)} params, ${sci(hi)} FLOPs (${((1 - hi / C) * 100).toFixed(0)}% less training)`);
+const extraTraining = C - hi, savedPerToken = 2 * match.N - 2 * llama.N;
+console.log(`  but serving 7B saves ${((1 - llama.N / match.N) * 100).toFixed(0)}% per token; extra training pays off after ${sci(extraTraining / savedPerToken, 1)} generated tokens`);
+```
+
+Output:
+
+```
+params (unlimited data)  loss   above the floor E
+    100M                 2.613  0.796
+    1.0B                 2.174  0.357
+   10.0B                 1.978  0.160
+  100.0B                 1.889  0.072
+    1.0T                 1.850  0.032
+  each 10× more params keeps 44.9% of the parameter term
+
+model        params  tokens  tokens/param  compute  predicted loss
+  Gopher     280.0B  300.0B           1.1  5.04e23  2.000
+  Chinchilla  70.0B    1.4T          20.0  5.88e23  1.974
+
+compute   best params  best tokens  tokens/param  loss   (original fit: tokens/param)
+  1e20         853M        19.5B            23  2.553      28
+  1e22         9.0B       184.4B            20  2.141      41
+  1e24        95.9B         1.7T            18  1.960      62
+  1e26         1.0T        16.4T            16  1.880      92
+
+Llama 2 7B: 8.09e22 FLOPs, 297 tokens/param, predicted loss 2.067
+  compute-optimal at that budget: 26.4B params on 510.1B tokens, loss 2.040
+  same loss, compute-optimal: 19.1B params, 4.28e22 FLOPs (47% less training)
+  but serving 7B saves 65% per token; extra training pays off after 1.5e12 generated tokens
+```
+
+What to take from it:
+
+- **Returns diminish by a constant fraction.** Going from 100M to 1B parameters cuts the parameter term from 0.796 to
+  0.357; going from 100B to 1T only cuts it from 0.072 to 0.032. Each 10× keeps 44.9% of it.
+- **The split matters at fixed compute.** Chinchilla (20 tokens/param) predicts 1.974 vs Gopher's 2.000 with slightly
+  more compute by `6ND` (the paper puts both at about 5.76 × 10²³ FLOPs).
+- **The corrected fit gives about 16–23 tokens per parameter** across a million-fold range of budgets. The original
+  constants give 28 to 92, growing with budget. Same formula, different fitted numbers, very different advice.
+- **Llama 2 7B was trained past compute-optimal on purpose.** A 19.1B model could reach the same predicted loss with
+  47% less training compute, but the 7B model is 65% cheaper per generated token. The extra training pays for itself
+  after about 1.5 trillion generated tokens, which a widely used model can exceed.
+
+## 9. Real-world example
+
+**An illustrative scenario: a company plans to pretrain a domain model** (legal documents) with a budget of about
+10²³ FLOPs. The team has two proposals: a 60B model "because bigger is better", and a 10B model trained longer.
+
+How an engineer who knows scaling laws approaches it:
+
+1. **Run a ladder of small experiments.** Train models from about 50M to 1B parameters on the domain data, at a few
+   token counts each, and fit a loss curve. Domain data may have a different floor and exponents than web text.
+2. **Find the compute-optimal size** for the budget from the fitted curve, and the expected loss.
+3. **Add inference to the cost model.** Estimate lifetime tokens served. If the model will serve billions of tokens a
+   day, a smaller model trained on more tokens is likely cheaper overall.
+4. **Check the data budget.** A 10B model at 300 tokens per parameter needs 3T tokens. If the domain only has 200B
+   good tokens, repeating data has limits, so the plan must change.
+5. **Consider not pretraining.** Fine-tuning an existing open model (Season 8) or retrieval (Season 4) may reach the
+   goal for a tiny fraction of the cost.
+
+<Callout type="opinion">
+  For almost all product teams, scaling laws are a tool for *choosing* models, not training them. The useful takeaway
+  is to ask how many tokens a model was trained on per parameter and what it costs to serve, not just how many
+  parameters it has.
+</Callout>
+
+## 10. Common mistakes
+
+- **Treating scaling laws as physical laws.** They're empirical fits for a given architecture, data mix and training
+  setup, with real uncertainty.
+- **Extrapolating too far.** A fit over 1,000× of scale can break beyond it: data runs out, or the architecture or
+  training recipe hits a limit.
+- **Equating lower loss with specific abilities.** Loss averages over all text; a skill you care about may improve
+  slowly or suddenly.
+- **Using "compute-optimal" as "best to deploy".** It ignores inference cost, latency and memory.
+- **Comparing models by parameter count alone.** A well-trained 8B model can beat an older, undertrained model many
+  times its size.
+- **Ignoring data quality.** Scaling laws assume a fixed data distribution; better data shifts the whole curve.
+- **Copying constants between fits.** Kaplan's and Chinchilla's formulas use different definitions and setups; don't
+  mix their numbers.
+
+## 11. Limitations
+
+- **Fitted constants vary.** The Chinchilla replication showed how sensitive the recommended ratio is to the fitting
+  procedure.
+- **Most published laws describe pretraining loss** for dense transformers on web text. Mixture-of-experts models,
+  other modalities, post-training and reinforcement learning follow different curves.
+- **Data is finite.** Laws that assume unlimited fresh tokens don't hold once data must be repeated.
+- **Downstream performance is harder to predict** than loss, and benchmarks saturate or leak.
+- **Frontier details are often unpublished.** Many labs no longer report the scaling data behind their largest models,
+  so public numbers lag practice.
+
+## 12. When to use it
+
+- **Planning a training or fine-tuning run:** run small experiments, fit, and extrapolate before committing budget.
+- **Choosing a model to deploy:** compare training tokens per parameter and serving cost, not just size.
+- **Budgeting:** estimate compute with `6ND` and the expected improvement from 10× more.
+- **Explaining trends to stakeholders:** why each model generation costs so much more, and why smaller, newer models
+  often beat older, bigger ones.
+- **Evaluating claims:** a claimed jump far above the scaling trend deserves a check for contamination or a changed
+  evaluation.
+
+## 13. When NOT to use it
+
+- **Picking between two specific hosted models.** Run your own evals (lesson 1.1.11, Season 6); laws don't predict
+  task quality for your use case.
+- **Small, classical ML problems.** A fraud model on tabular data is limited by features and labels, not by power laws
+  in parameters.
+- **Fine-tuning decisions on small datasets.** Behavior there depends more on data quality and evaluation than on
+  pretraining laws.
+- **Predicting exact capabilities** of a future model, like whether it will pass a specific benchmark.
+
+## 14. Interview explanation (30 seconds)
+
+> Scaling laws are empirical power laws showing that language model loss falls predictably as you increase
+> parameters, training data and compute, with diminishing returns: each 10× removes about the same fraction of the
+> remaining loss. Kaplan et al. found the trends in 2020; DeepMind's Chinchilla work showed that for a fixed compute
+> budget, parameters and tokens should scale together, about 20 tokens per parameter. In practice, teams train
+> smaller models on far more tokens than that because inference cost matters, and newer work scales inference-time
+> compute too.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start with what was found. Across many orders of magnitude, transformer language model loss follows power laws in
+non-embedding parameters, dataset size and compute. On a log-log plot these are straight lines, so labs can fit on
+small models and forecast large ones. Architecture details like depth vs width matter much less than scale.
+
+Explain the functional form. Chinchilla models loss as an irreducible floor plus a term shrinking with parameters and
+a term shrinking with tokens. With compute about `6ND`, minimizing that loss gives roughly equal scaling of
+parameters and tokens. Kaplan's earlier analysis favored bigger models with less data; Chinchilla corrected that by
+training models to their intended token counts, and showed a 70B model on 1.4T tokens beat 280B Gopher at the same
+compute. A later replication found Chinchilla's published fit constants were off, but its corrected fit confirmed
+about 20 tokens per parameter, a reminder that these are estimates.
+
+Then the engineering nuance. Compute-optimal minimizes training cost for a target loss, not total cost. Inference
+costs about `2N` FLOPs per token for the model's whole life. With the corrected fit, Llama 2 7B's loss could have
+been reached by a 19B compute-optimal model with about half the training compute, but the 7B model is 65% cheaper
+to serve, so the extra training pays off after roughly 1.5 trillion generated tokens. That's why Llama 3 8B trained
+on over 15T tokens.
+
+Close with limits: fits vary, data is finite, loss doesn't map cleanly to capabilities, post-training matters, and
+inference-time compute is now a separate scaling axis, where spending more reasoning tokens can beat a larger model
+on some tasks.
+
+## 16. Hands-on exercise
+
+Run the code example, then:
+
+1. **Double what?** With the corrected fit, a 7B model trained on 140B tokens (20 per parameter) has some predicted
+   loss. Which is better for the same extra compute: doubling parameters (14B on 140B) or doubling tokens (7B on
+   280B)? Compute both losses.
+2. **Llama 3 8B.** Change the Llama numbers to `N: 8e9, D: 15e12`. How far past compute-optimal is it, and after how
+   many generated tokens does the extra training pay off?
+3. **Napkin math.** With 20 tokens per parameter and `C = 6ND`, derive a formula for the compute-optimal parameter
+   count from a budget `C`, and apply it to 10²⁴ FLOPs. Compare it with the code's table.
+
+<Answer label="Answers from running it">
+  1. The baseline is **2.1733**. Doubling tokens gives **2.1342** and doubling parameters gives **2.1344**. Both cost
+     the same compute (1.176 × 10²² FLOPs) and are nearly identical, which is what "scale them equally" means: at 20
+     tokens per parameter, the two terms are balanced (0.1815 from parameters, 0.1746 from tokens).
+  2. Llama 3 8B: 7.20 × 10²³ FLOPs at **1,875 tokens per parameter**, predicted loss 2.022. A compute-optimal 33.7B
+     model would match that loss with **82% less training compute**, but the 8B model is 76% cheaper per token, and
+     the extra training pays off after about **1.1 × 10¹³ (11 trillion) generated tokens**.
+  3. `D = 20N`, so `C = 6 × N × 20N = 120N²` and `N = sqrt(C / 120)`. For 10²⁴ FLOPs, `N ≈ 91.3B` and `D ≈ 1.83T`.
+     The code's search gives 95.9B on 1.7T (18 tokens per parameter), close, because the fitted optimum isn't exactly
+     20.
+</Answer>
+
+## 17. Challenge
+
+**Fit your own scaling law** and test whether it extrapolates.
+
+1. Treat the corrected Chinchilla formula as "reality". Simulate a ladder of small training runs: `N` from 10M to
+   300M, each at 20 tokens per parameter, and add seeded random noise of ±1% to each loss (use `mulberry32` from
+   lesson 1.1.3).
+2. Fit `loss = E + a × C^(−b)` to those points, where `C = 6ND`. Use gradient descent (lesson 1.1.7) on the three
+   parameters, or grid-search `E` and fit a straight line to `log(loss − E)` vs `log C`.
+3. Predict the loss at 10²², 10²⁴ and 10²⁶ FLOPs and compare with the formula's compute-optimal losses from the code
+   example.
+4. Repeat with 3% noise and with only 4 points. How wrong does the extrapolation get, and which parameter is hardest
+   to pin down?
+
+<Answer label="Hints">
+  The floor `E` is the hard part: small models are far from it, so many `E` values fit the small-scale points about
+  equally well but diverge at large scale. Grid-searching `E` and doing linear regression on the logs for each
+  candidate is simple and robust. Expect errors to grow with distance: extrapolating 10⁴× beyond your data is much
+  riskier than 10×. That's why labs fit on as wide a ladder as they can afford.
+</Answer>
+
+## Module assessment
+
+Module 1.1 covered AI vs ML vs deep learning, learned functions, discriminative and generative models, neural networks,
+parameters, loss, gradient descent, backpropagation, training vs inference, overfitting, evaluation metrics, compute
+and scaling laws. Try each question before opening the answers below.
+
+**Conceptual**
+
+1. A teammate says "our spam filter uses AI, so it's generative AI." Explain the difference between AI, machine
+   learning, deep learning and generative AI, and where a typical spam classifier fits.
+2. Why does a neural network need nonlinear activation functions? What happens if you stack ten linear layers?
+3. Describe how a loss function, gradient descent and backpropagation work together in one training step. Which one
+   answers "how wrong", "which direction" and "who's to blame"?
+4. A model scores 99% training accuracy and 71% validation accuracy. Name the problem, two likely causes and three
+   fixes.
+5. Why doesn't a deployed chat model learn from your conversation, and what are the ways to change its behavior?
+
+**Practical**
+
+6. Count the parameters of a fully connected network with 10 inputs, one hidden layer of 32 neurons and 3 outputs
+   (every layer has biases). How many bytes do they take at 32-bit?
+7. A classifier's confusion matrix is TP = 45, FP = 5, FN = 45, TN = 905. Compute accuracy, precision, recall and F1.
+   What would you change if misses are expensive?
+8. A 13B-parameter model is trained compute-optimally at 20 tokens per parameter. Estimate its training compute with
+   `6ND`, the GPU hours at an average of 122 TFLOPS per GPU, its 16-bit weight size, and its single-user memory
+   bandwidth limit on a 2,039 GB/s GPU.
+
+**Interview**
+
+9. "Explain gradient descent and backpropagation to a backend engineer in two minutes."
+10. "Our fraud model has 99.5% accuracy. Should we ship it?" Answer as you would in an interview.
+
+**Implementation challenge**
+
+11. In dependency-free TypeScript, build an end-to-end bot detector: generate a seeded, noisy signup dataset; split it
+    into train, validation and test with no duplicates across splits; train the 2-2-1 network with backpropagation,
+    and verify one gradient numerically; use validation loss for early stopping; choose a threshold on validation
+    from error costs; report the confusion matrix, precision and recall on test once; and count forward and backward
+    passes for training vs serving 10,000 requests.
+
+## Answers
+
+<Answer label="Conceptual answers">
+  1. **AI** is the broad goal of machines doing tasks that seem to need intelligence, including hand-written rules.
+     **Machine learning** is the subset that learns behavior from data. **Deep learning** is ML with multi-layer
+     neural networks. **Generative AI** produces new content, like text or images. A spam filter is usually a
+     **discriminative ML classifier**: it learns a label from data but doesn't generate content (lessons 1.1.1 and
+     1.1.3). If it were a neural network it would also be deep learning, still not generative.
+  2. Without nonlinearity, each layer is a matrix multiply plus a bias, and a composition of linear functions is one
+     linear function. Ten stacked linear layers collapse into a single linear layer and can't represent patterns like
+     XOR. Activations such as ReLU let layers compose into curved decision boundaries (lesson 1.1.4).
+  3. The forward pass produces predictions; the **loss** scores how wrong they are (lesson 1.1.6).
+     **Backpropagation** applies the chain rule backward to compute each parameter's gradient: its share of the
+     blame (lesson 1.1.8). **Gradient descent** moves each parameter a small step against its gradient: the
+     direction that lowers loss (lesson 1.1.7). Loss is "how wrong", the gradient's sign is "which direction", and
+     backprop is "who's to blame".
+  4. **Overfitting.** Likely causes: too much capacity for the data, too little data, label noise the model memorized,
+     or training too long. Fixes: more (deduplicated) data, a smaller model or fewer features, L2 regularization or
+     dropout, and early stopping on validation loss. Also check that the validation split isn't different in kind
+     (lesson 1.1.10).
+  5. Inference only runs the forward pass on frozen weights; nothing computes a loss or updates parameters, and live
+     updates would be non-reproducible and easy to poison. Earlier messages are remembered only because the app
+     resends them as context. To change behavior: prompts and retrieval at runtime, or fine-tuning or retraining to
+     produce and deploy a new weights version (lesson 1.1.9).
+</Answer>
+
+<Answer label="Practical answers">
+  6. Hidden layer: 10 × 32 weights + 32 biases = **352**. Output layer: 32 × 3 + 3 = **99**. Total **451**
+     parameters. At 32-bit (4 bytes each): 451 × 4 = **1,804 bytes** (lesson 1.1.5).
+  7. Accuracy = (45 + 905) / 1,000 = **0.950**. Precision = 45 / 50 = **0.900**. Recall = 45 / 90 = **0.500**. F1 =
+     2 × 0.9 × 0.5 / 1.4 ≈ **0.643**. It misses half the positives. If misses are expensive, lower the threshold to
+     raise recall, accepting lower precision, and pick the new threshold on validation data from the cost of each
+     error type (lesson 1.1.11).
+  8. `D = 20 × 13B = 260B` tokens. Compute = 6 × 13 × 10⁹ × 260 × 10⁹ ≈ **2.03 × 10²² FLOPs**. At 122 TFLOPS
+     (1.22 × 10¹⁴ FLOPs/s): about 1.66 × 10⁸ GPU-seconds ≈ **46,000 GPU hours**. Weights at 16-bit: 13B × 2 bytes =
+     **26 GB**. Memory bandwidth limit: 2,039 ÷ 26 ≈ **78 tokens/s** for one user, before KV-cache and overhead
+     (lessons 1.1.9 and 1.1.12).
+</Answer>
+
+<Answer label="Interview answers">
+  9. Training is an optimization loop. Start with random weights, run a batch through the network, and compute a
+     loss: one number for how wrong the predictions are. We want to change millions of weights to lower that number.
+     The gradient tells us, for each weight, which direction increases the loss and how strongly, so gradient descent
+     nudges every weight a small step the other way, scaled by a learning rate. Too large and it diverges; too small
+     and it crawls. Backpropagation is how we get those gradients efficiently: the chain rule applied backward
+     through the layers, reusing values from the forward pass, like propagating blame back through a call stack.
+     It costs about twice the forward pass. Frameworks do it automatically with autograd, and we repeat the loop over
+     mini-batches millions of times.
+  10. Not on that number alone. First I'd ask the base rate: if fraud is 0.5% of transactions, predicting "not fraud"
+     always is 99.5% accurate and catches nothing. I'd want the confusion matrix on data with production's class
+     balance, then precision (how many flagged transactions are real fraud, which drives customer friction and review
+     load) and recall (how much fraud we catch, which drives losses). Then I'd choose a threshold from the cost of a
+     missed fraud vs a declined good customer, maybe with a middle band sent to manual review, check the evaluation
+     for leakage such as duplicate accounts across splits, and ship behind a canary with monitoring, since fraud labels
+     arrive late and patterns shift.
+</Answer>
+
+<Answer label="Implementation challenge hints">
+  Reuse the pieces from the module: `mulberry32` (1.1.3), the signup generator (1.1.10), the 2-2-1 `forward` and
+  `backward` (1.1.8), `numericGradient` for the check (1.1.7), `confusion` and `metrics` (1.1.11), and pass counters
+  (1.1.9). Deduplicate on the feature vector before splitting. Standardize inputs using training-set statistics only.
+  For early stopping, compute validation cross-entropy every 100 steps and keep a copy of the best weights. The
+  numeric and analytic gradients should agree to about 4–6 significant digits; a larger gap usually means a ReLU
+  derivative or sign error. Expect imperfect test precision and recall because of label noise, and expect serving to
+  use exactly one forward pass per request and no backward passes.
+</Answer>
+
+## 18. Sources and acknowledgements
+
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

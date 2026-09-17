@@ -29,10 +29,22 @@ references:
     tier: optional
     level: Intermediate
     why: The canonical textbook. Chapter 1 explains the AI → ML → representation learning → deep learning hierarchy in depth, with history.
+  - title: 'Attention Is All You Need'
+    source: Vaswani et al., Google (2017)
+    url: https://arxiv.org/abs/1706.03762
+    tier: optional
+    level: Advanced
+    why: The paper that introduced the transformer, credited in this lesson for making internet-scale language training practical. Module 1.3 covers it in depth.
+  - title: 'Deep Learning with Python, Chapter 1: What is deep learning?'
+    source: François Chollet — Manning (free online edition)
+    url: https://deeplearningwithpython.io/chapters/chapter01_what-is-deep-learning/
+    tier: should
+    level: Beginner
+    why: The origin of the "rules and data in, answers out" vs "data and answers in, rules out" framing used in this lesson, with a clear intro to machine learning as a new programming paradigm.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -105,6 +117,9 @@ from it. An LLM is trained to predict the next token of text. Run that predictio
 
 ## 6. Visual explanation
 
+This nested view of AI, machine learning and deep learning follows the one Goodfellow, Bengio & Courville draw in
+Chapter 1 of *Deep Learning* (in the sources). The layout and examples below are this course's own.
+
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ ARTIFICIAL INTELLIGENCE                                      │
@@ -124,7 +139,7 @@ from it. An LLM is trained to predict the next token of text. Run that predictio
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Where the logic comes from:
+Where the logic comes from, following François Chollet's framing in *Deep Learning with Python*:
 
 ```
 Classic software:   Rules (you) + Data  ──▶  Answers
@@ -280,7 +295,7 @@ depends on hand-engineered features.
 
 Deep learning replaces hand-crafted features with **representation learning**. Stacked layers of a neural network
 learn features themselves: edges then shapes in vision, and sub-word patterns then syntax then semantics in language.
-That needs much more data and compute, which is why GPUs matter. Transformers (2017) made it practical to train on
+That needs much more data and compute, which is why GPUs matter. The transformer architecture (Vaswani et al., 2017) made it practical to train on
 internet-scale text in parallel.
 
 Generative AI uses those deep models to model the data distribution and sample new content. An LLM predicts the
@@ -327,6 +342,6 @@ it. Then:
 You've just built, by hand, the exact limitation (words as isolated counts, no meaning or context) that embeddings
 and transformers were invented to fix. You'll meet those in Module 1.2.
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

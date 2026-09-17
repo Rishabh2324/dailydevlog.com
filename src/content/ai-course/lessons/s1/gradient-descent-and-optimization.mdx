@@ -36,10 +36,22 @@ references:
     tier: optional
     level: Advanced
     why: A readable survey of SGD, momentum, RMSprop and Adam, for when you want to know what the optimizer options in a training library do.
+  - title: 'Adam: A Method for Stochastic Optimization'
+    source: Kingma & Ba (2014)
+    url: https://arxiv.org/abs/1412.6980
+    tier: optional
+    level: Advanced
+    why: The original Adam paper, credited where this lesson names the optimizer. AdamW comes from Loshchilov & Hutter, Decoupled Weight Decay Regularization (2019).
+  - title: 'Decoupled Weight Decay Regularization (AdamW)'
+    source: Loshchilov & Hutter (2019)
+    url: https://arxiv.org/abs/1711.05101
+    tier: optional
+    level: Advanced
+    why: The paper that introduced AdamW, credited where this lesson names it as a common default for training transformers.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -152,7 +164,7 @@ depend on the starting values, learning rate and batch size.
 
 <Callout type="fact" title="Optimizers you'll see named">
   **Momentum** keeps a running average of recent gradients, so steps build speed in consistent directions and damp
-  oscillation. **Adam** (and its variant **AdamW**) also scales each parameter's step by how large its recent
+  oscillation. **Adam** (Kingma & Ba, 2014) and its variant **AdamW** (Loshchilov & Hutter, 2019) also scale each parameter's step by how large its recent
   gradients have been. AdamW is a common default for training transformers. They're all refinements of the same
   loop: measure the gradient, step against it.
 </Callout>
@@ -469,6 +481,6 @@ Turn the loop into a small **training library**.
   check fails, compare one component at a time, and make sure you're averaging over the same examples in both versions.
 </Answer>
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

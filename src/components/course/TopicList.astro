@@ -1,14 +1,15 @@
 ---
 import Badge from '../Badge.astro';
-import { LEVELS, type Topic } from '../../lib/ai-course';
+import { levelInfo, type CourseId, type Topic } from '../../lib/courses';
 
 interface Props {
+  course: CourseId;
   topics: Topic[];
   currentId?: string;
   compact?: boolean;
 }
 
-const { topics, currentId, compact = false } = Astro.props;
+const { course, topics, currentId, compact = false } = Astro.props;
 ---
 
 <ol class:list={['divide-y divide-hairline-soft', compact ? 'text-sm' : 'text-[15px]']}>
@@ -38,7 +39,7 @@ const { topics, currentId, compact = false } = Astro.props;
           {!compact && (
             <span class="flex shrink-0 gap-1">
               {topic.maturity && <Badge variant="orange">{topic.maturity}</Badge>}
-              <Badge variant={LEVELS[topic.level].variant}>{topic.level}</Badge>
+              <Badge variant={levelInfo(course, topic.level).variant}>{topic.level}</Badge>
             </span>
           )}
         </li>

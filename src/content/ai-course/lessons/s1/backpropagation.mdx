@@ -42,10 +42,16 @@ references:
     tier: optional
     level: Advanced
     why: The paper that popularized backpropagation for training neural networks with hidden layers.
+  - title: 'Scaling Laws for Neural Language Models'
+    source: Kaplan et al., OpenAI (2020)
+    url: https://arxiv.org/abs/2001.08361
+    tier: optional
+    level: Advanced
+    why: Source of the estimate that a transformer's backward pass costs about twice the forward pass (6N vs 2N FLOPs per token), credited in this lesson.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -506,6 +512,6 @@ Build a **tiny autograd engine**, so the backward pass writes itself.
   paths" in the chain rule.
 </Answer>
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

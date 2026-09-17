@@ -30,10 +30,22 @@ references:
     tier: optional
     level: Intermediate
     why: A free book that builds from perceptrons to sigmoid neurons with gentle math. Chapter 4 gives a visual argument for why networks can approximate almost any function.
+  - title: 'Perceptrons (1969; expanded edition 1988)'
+    source: Marvin Minsky & Seymour Papert — MIT Press
+    url: https://mitpress.mit.edu/9780262534772/perceptrons/
+    tier: optional
+    level: Advanced
+    why: The book credited in this lesson for making the single-neuron XOR limitation famous.
+  - title: 'Gradient-Based Learning Applied to Document Recognition'
+    source: LeCun, Bottou, Bengio & Haffner — Proceedings of the IEEE (1998)
+    url: https://ieeexplore.ieee.org/document/726791
+    tier: optional
+    level: Advanced
+    why: The paper that introduced the MNIST handwritten-digit dataset (28×28 grayscale images) used as this lesson's real-world example.
 ---
 
-import Callout from '../../../../components/ai-course/Callout.astro';
-import Answer from '../../../../components/ai-course/Answer.astro';
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
 
 ## 1. Why does this exist?
 
@@ -121,7 +133,8 @@ So a hundred stacked linear layers compute exactly what **one** linear layer can
 numbers. The non-linearity is what makes depth buy you anything.
 
 **XOR: the classic proof.** XOR outputs 1 when exactly one input is 1. Plot the four points and you'll see no
-single straight line separates the 1s from the 0s, so no single neuron can compute it. Two ReLU neurons can:
+single straight line separates the 1s from the 0s, so no single neuron can compute it. Minsky and Papert's 1969 book *Perceptrons* made this limitation famous. Two ReLU
+neurons can:
 
 - `h1 = relu(x1 + x2)` counts how many inputs are on,
 - `h2 = relu(x1 + x2 - 1)` fires only when **both** are on,
@@ -336,7 +349,7 @@ What to take from it:
 ## 9. Real-world example
 
 **Handwritten digit recognition** is the textbook case, and it's still how many engineers first meet networks.
-Each 28×28 grayscale image becomes 784 input numbers. A hidden layer of a hundred or so ReLU neurons feeds 10 output
+In the MNIST dataset (LeCun et al., 1998), each 28×28 grayscale image becomes 784 input numbers. A hidden layer of a hundred or so ReLU neurons feeds 10 output
 neurons with softmax, one per digit. Such a small network can recognize most test digits correctly.
 
 The same shape shows up inside modern systems:
@@ -472,6 +485,6 @@ Build a tiny **hand-wired digit recognizer** for a 3×3 grid, with no training.
   and notice how quickly that gets painful with only 9 inputs.
 </Answer>
 
-## 18. References
+## 18. Sources and acknowledgements
 
-The curated reading for this lesson is below, grouped into must read, should read and optional.
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.

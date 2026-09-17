@@ -2,9 +2,9 @@
 
 The handoff doc for writing the remaining lessons across sessions. Start each new session with:
 
-> Read `docs/ai-course-plan.md`, then write lesson X.Y.Z (or: the next N lessons).
+> Today's lessons (writes the next lesson in each course), or: write AI course lesson X.Y.Z.
 
-The full original blueprint (topic map, projects, references, 12-week plan) is in `docs/ai-course-content.md`. The `ai-lesson-writeup` skill (`.claude/skills/ai-lesson-writeup/SKILL.md`) holds the lesson format. This doc holds
+The full original blueprint (topic map, projects, references, 12-week plan) is in `docs/ai-course-content.md`. The `course-lesson` skill (`.claude/skills/course-lesson/`) holds the shared steps, and `formats/ai-course.md` holds the lesson format. This doc holds
 status, sequencing, running examples and lessons learned.
 
 ## Where things live
@@ -14,13 +14,13 @@ status, sequencing, running examples and lessons learned.
 | Outline (source of truth for topics, levels, slugs) | `src/content/ai-course/course.yaml` |
 | Lessons | `src/content/ai-course/lessons/s<N>/<slug>.mdx` |
 | Course home long-form sections | `src/content/ai-course/roadmap.mdx` |
-| Join + build-time validation | `src/lib/ai-course.ts` |
-| Pages | `src/pages/ai-course/` |
-| MDX components | `src/components/ai-course/` (`Callout`, `Answer`, `TopicList`) |
+| Course registry, joins and build-time validation | `src/lib/courses.ts` |
+| Pages (shared by all courses) | `src/pages/[course]/` |
+| MDX components | `src/components/course/` (`Callout`, `Answer`, `TopicList`) |
 
 ## Status
 
-Published lessons (update this list after each session; `ls src/content/ai-course/lessons/*/` is the ground truth):
+Published lessons (update this list after each session; `npm run course:next` is the ground truth):
 
 - [x] 1.1.1 AI vs ML vs DL vs GenAI
 - [x] 1.1.2 Rules vs learned functions
@@ -31,13 +31,17 @@ Published lessons (update this list after each session; `ls src/content/ai-cours
 - [x] 1.1.7 Gradient descent and optimization
 - [x] 1.1.8 Backpropagation (intuition)
 - [x] 1.1.9 Training vs inference
-- [ ] **1.1.10 Overfitting and generalization** ← next
+- [x] 1.1.10 Overfitting and generalization
+- [x] 1.1.11 Model evaluation metrics
+- [x] 1.1.12 GPUs and why AI needs compute
+- [x] 1.1.13 Scaling laws (intuition) + Module 1.1 assessment
+- [ ] **1.2.1 Text representation: one-hot, bag-of-words, TF-IDF** ← next (Module 1.2 starts)
 
-Total: 9 of 295. As of 2026-09-17 the course work is not yet committed (branch `develop`).
+Total: 13 of 295.
 
 ## Session workflow
 
-1. Write **2–3 lessons per session** (each is about 400–500 lines of MDX) to keep context small.
+1. Daily cadence: **1 lesson per day** here, alongside 1 AI-Native Software Engineering lesson. Write more on days you learn more, but no more than 3 per session (each is about 400–500 lines of MDX), to keep context small.
 2. For each lesson:
    - Read its entry in `course.yaml` and the notes for its module below. Skim the previous lesson's sections 16–17
      for continuity. Don't re-read all earlier lessons.
@@ -63,6 +67,12 @@ Total: 9 of 295. As of 2026-09-17 the course work is not yet committed (branch `
 - Keep examples dependency-free TypeScript until Season 2. Seasons 2+ may use real SDKs; verify their APIs first.
 - Tone: an experienced engineer who is new to AI. Explain intuition before notation. Label claims with
   `<Callout type="fact|practice|opinion|emerging">`.
+- Label made-up scenarios with invented numbers (e.g. section 9 stories) as illustrative, so they don't read as sourced facts.
+- WebFetch can't read arXiv PDFs here (no pdftotext); use `https://ar5iv.labs.arxiv.org/html/<id>` or `arxiv.org/html/<id>`.
+- Published fit constants can be wrong (Chinchilla Approach 3). Prefer replicated values and say so in a callout.
+- Module assessments go between section 17 and `## 18. References` (the page renders references after the content).
+- Attribution: credit sources inline for specific numbers, results and framings, and end with the standard
+  "Sources and acknowledgements" paragraph (see the Attribution section in `SKILL.md`). Module 1.1 was audited on 2026-09-17.
 - Reference `lesson X.Y.Z` when pointing forward or back, rather than linking manually.
 
 ## Running examples (reuse for continuity)
@@ -82,6 +92,23 @@ Total: 9 of 295. As of 2026-09-17 the course work is not yet committed (branch `
   `4a5368fa` on 3 feedback bots (500 steps) → slow bot 0.462 → 0.749, errors 2 → 1, fast human 0.719 → 0.882.
   Llama 2 7B: 184,320 A100 GPU hours, `6ND ≈ 8.09e22` FLOPs; training ≈ 16 bytes/param (ZeRO) ≈ 108 GB.
   Reuse for 1.1.10 (overfitting) and 1.1.12 (compute).
+- **Noisy signup generator** (1.1.10): `mulberry32(7)`, bots `s∈[1,6)`, `k∈0..9`; humans `s∈[3.5,19.5)`, `k∈5..44`;
+  10% flipped labels; train 20 / validation 300 / test 300. Validation: lookup table 52.0%, 1-NN 81.0% (train 100%),
+  5-NN 86.7% (chosen, test 85.0%), poly-15 L2 lambda 0 → 83.3%, 0.001 → 86.3%; noise ceiling ≈ 90.3%.
+  Leaky test (60 train copies) 1-NN 80.0% → 83.0%. Reuse its validation predictions for the confusion matrix in 1.1.11.
+- **Metrics on the bot detector** (1.1.11): same generator with `signup(botRate, noise)`; 5-NN validation TP 136,
+  FP 29, FN 11, TN 124 (precision 0.824, recall 0.925, F1 0.872). Production sample `make(5000, 0.03, 0.01)`: 203 labeled
+  bots; always-human accuracy 0.959 vs model 0.918, precision 0.299, recall 0.759. Costs $20/miss + $5/false alarm →
+  best t = 0.8 ($2,010). Reuse for retrieval metrics (3.2.8) and evals (Season 6).
+- **Compute napkin math** (1.1.12): JS matmul on M3 Pro (11 threads, Node 25.6) 12.72 GFLOPS at 2048; threads 9.5×
+  faster at 2048, 5× slower at 256. A100 80GB datasheet: 312 TFLOPS fp16, 2,039 GB/s, NVLink 600 GB/s. Llama 2 7B on
+  A100: compute limit ≈ 23,145 tok/s, memory limit ≈ 151 tok/s; 4-bit ≈ 605; batch 32 ≈ 4,840; training ≈ 122 TFLOPS
+  avg (≈ 39% MFU). M3 Pro 150 GB/s. Reuse in 1.1.13 (scaling laws) and Season 7/8.
+- **Scaling laws** (1.1.13): Chinchilla form with Epoch AI's corrected fit (E 1.8172, A 482.01, B 2085.43, α 0.3478,
+  β 0.3658; original Hoffmann fit gives 28–92 tokens/param). Gopher 280B/300B → 2.000 vs Chinchilla 70B/1.4T → 1.974;
+  MMLU 67.5 vs 60.0. Llama 2 7B (297 tok/param, loss 2.067) vs same-loss compute-optimal 19.1B at 4.28e22 FLOPs;
+  7B is 65% cheaper per token, break-even ≈ 1.5e12 generated tokens. Llama 3 8B: 15T tokens, 1,875 tok/param.
+  Reuse in 1.4.9 (test-time compute) and Season 7 cost lessons.
 - **Support tickets bug vs feature** (1.1.3): an 8-ticket dataset, Naive Bayes vs perceptron, bigram generator.
 - **Capstone "DevBrain"** (engineering knowledge assistant): introduced from Season 2 on. Its version table is
   in `roadmap.mdx`.

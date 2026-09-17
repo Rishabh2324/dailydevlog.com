@@ -2,39 +2,46 @@
 import { render } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Badge from '../../../components/Badge.astro';
-import TopicList from '../../../components/ai-course/TopicList.astro';
+import TopicList from '../../../components/course/TopicList.astro';
 import { formatDate } from '../../../lib/format';
-import { getAllTopics, getCourse, LEVELS, moduleSlug } from '../../../lib/ai-course';
+import { COURSE_IDS, getAllTopics, getCourse, levelInfo, moduleSlug } from '../../../lib/courses';
 
 export async function getStaticPaths() {
-  const seasons = await getCourse();
-  const topics = await getAllTopics();
-  const published = topics.filter((t) => t.lesson);
+  async function lessonPaths(course: (typeof COURSE_IDS)[number]) {
+    const seasons = await getCourse(course);
+    const topics = await getAllTopics(course);
+    const published = topics.filter((t) => t.lesson);
 
-  return seasons.flatMap((season) =>
-    season.modules.flatMap((mod) =>
-      mod.topics
-        .filter((topic) => topic.lesson)
-        .map((topic) => {
-          const index = published.indexOf(topic);
-          return {
-            params: { module: moduleSlug(mod.id), lesson: topic.slug },
-            props: {
-              season,
-              mod,
-              topic,
-              prerequisites: topic.lesson!.data.prerequisites.map((id) => topics.find((t) => t.id === id)!),
-              prev: published[index - 1],
-              next: published[index + 1],
-            },
-          };
-        })
-    )
-  );
+    return seasons.flatMap((season) =>
+      season.modules.flatMap((mod) =>
+        mod.topics
+          .filter((topic) => topic.lesson)
+          .map((topic) => {
+            const index = published.indexOf(topic);
+            return {
+              params: { course, module: moduleSlug(mod.id), lesson: topic.slug },
+              props: {
+                course,
+                season,
+                mod,
+                topic,
+                prerequisites: topic.lesson!.data.prerequisites.map((id) => topics.find((t) => t.id === id)!),
+                prev: published[index - 1],
+                next: published[index + 1],
+              },
+            };
+          })
+      )
+    );
+  }
+
+  const paths = await Promise.all(COURSE_IDS.map(lessonPaths));
+  return paths.flat();
 }
 
-const { season, mod, topic, prerequisites, prev, next } = Astro.props;
+const { course, season, mod, topic, prerequisites, prev, next } = Astro.props;
 const lesson = topic.lesson!;
+const level = levelInfo(course, topic.level);
 const { Content } = await render(lesson);
 const { summary, date, lastVerified, estimatedMinutes, references } = lesson.data;
 
@@ -59,7 +66,7 @@ const tiers = [
         <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{topic.title}</h1>
         <p class="mt-3 text-slate">{summary}</p>
         <div class="mt-4 flex flex-wrap items-center gap-2">
-          <Badge variant={LEVELS[topic.level].variant}>{topic.level} · {LEVELS[topic.level].label}</Badge>
+          <Badge variant={level.variant}>{topic.level} · {level.label}</Badge>
           {topic.maturity && <Badge variant="orange">{topic.maturity}</Badge>}
           <span class="text-sm text-stone">
             {estimatedMinutes} min · <time datetime={date.toISOString()}>{formatDate(date)}</time>
@@ -108,7 +115,7 @@ const tiers = [
         references.length > 0 && (
           <section class="mt-12 border-t border-hairline pt-8" aria-labelledby="references">
             <h2 id="references" class="text-2xl font-semibold tracking-tight text-ink">
-              References
+              Sources
             </h2>
             {tiers.map(({ key, label }) => {
               const items = references.filter((r) => r.tier === key);
@@ -171,7 +178,7 @@ const tiers = [
         <p class="text-xs font-semibold tracking-wide text-stone uppercase">Module {mod.id}</p>
         <p class="mt-1 text-sm font-semibold text-ink">{mod.title}</p>
         <div class="mt-3 max-h-[calc(100vh-10rem)] overflow-y-auto pr-1">
-          <TopicList topics={mod.topics} currentId={topic.id} compact />
+          <TopicList course={course} topics={mod.topics} currentId={topic.id} compact />
         </div>
       </div>
     </aside>

@@ -1,0 +1,479 @@
+---
+topic: '1.1.12'
+date: 2026-09-17
+summary: Neural networks are mostly giant matrix multiplications, which split into millions of independent pieces; GPUs win by running those in parallel and by moving weights through memory fast, and memory speed, not raw compute, is what limits generating tokens.
+estimatedMinutes: 30
+tags: [Foundations, Compute, Hardware, Performance]
+prerequisites: ['1.1.5', '1.1.9']
+lastVerified: 2026-09-17
+references:
+  - title: Making Deep Learning Go Brrrr From First Principles
+    source: Horace He
+    url: https://horace.io/brrr_intro.html
+    tier: must
+    level: Intermediate
+    why: Explains the three places deep learning time goes (compute, memory bandwidth, overhead) with the same compute-bound vs memory-bound framing this lesson uses.
+  - title: GPU Performance Background User's Guide
+    source: NVIDIA Docs
+    url: https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html
+    tier: must
+    level: Intermediate
+    why: NVIDIA's own explanation of GPU architecture, why operations are memory-limited or math-limited, and how that shapes performance.
+  - title: NVIDIA A100 Tensor Core GPU
+    source: NVIDIA
+    url: https://www.nvidia.com/en-us/data-center/a100/
+    tier: should
+    level: Beginner
+    why: The datasheet behind the 312 TFLOPS and 2,039 GB/s memory bandwidth figures used in this lesson's napkin math.
+  - title: Matrix Multiplication Background User's Guide
+    source: NVIDIA Docs
+    url: https://docs.nvidia.com/deeplearning/performance/dl-performance-matrix-multiplication/index.html
+    tier: should
+    level: Intermediate
+    why: Shows how fully connected layers map to matrix multiplies (GEMMs) and how their shapes affect GPU speed.
+  - title: 'PaLM: Scaling Language Modeling with Pathways'
+    source: Chowdhery et al., Google (2022)
+    url: https://arxiv.org/abs/2204.02311
+    tier: optional
+    level: Advanced
+    why: Appendix B defines model FLOPs utilization (MFU), the standard way to measure how much of a cluster's theoretical compute training actually uses.
+  - title: 'MacBook Pro (14-inch, M3 Pro or M3 Max, Nov 2023) - Tech Specs'
+    source: Apple Support
+    url: https://support.apple.com/en-us/117736
+    tier: optional
+    level: Beginner
+    why: Source of the 150 GB/s memory bandwidth figure for the M3 Pro chip that ran this lesson's benchmark.
+---
+
+import Callout from '../../../../components/course/Callout.astro';
+import Answer from '../../../../components/course/Answer.astro';
+
+## 1. Why does this exist?
+
+Lesson 1.1.5 counted Llama 2 7B's parameters: 6.74 billion, 13.5 GB at 16-bit. Lesson 1.1.9 put numbers on its
+training: about 8.09 × 10²² floating-point operations (FLOPs) and 184,320 A100 GPU hours. This lesson answers the
+obvious follow-ups: **why GPUs, and what actually limits speed?**
+
+The answer shapes almost every cost and latency conversation in AI engineering: why inference is priced per token,
+why a model that "fits" on a laptop still generates slowly, why batching requests is so effective, and why the
+hardware story is really a memory story.
+
+## 2. What problem does it solve?
+
+Understanding compute solves **"why is this slow or expensive, and what would make it faster?"**
+
+- **Picking hardware.** Knowing whether a job is limited by compute or by memory tells you what to buy or rent.
+- **Estimating speed and cost.** Napkin math with FLOPs and memory bandwidth gives tokens per second before you
+  benchmark.
+- **Understanding pricing.** Why input tokens are cheaper than output tokens, and why batch APIs are discounted.
+- **Understanding optimizations.** Quantization, batching and caching (Season 7) all target a specific bottleneck.
+
+## 3. Simple explanation
+
+**A neural network is mostly matrix multiplication. Matrix multiplication is millions of small, independent
+multiply-and-add jobs. A GPU is a chip built to do thousands of those at once.**
+
+Every layer in lesson 1.1.4 computed weighted sums: each output is a dot product of an input vector with a row of
+weights. Do that for every output, every token and every example in a batch, and you get a matrix multiply. For a
+4,096 × 4,096 layer, one matrix multiply of two such matrices is about 137 billion operations.
+
+- A **CPU** has a few to a few dozen powerful cores, built for branching, varied work.
+- A **GPU** has thousands of simpler cores, built to run the same arithmetic on lots of data in parallel, with very
+  fast memory attached.
+
+Then there's the part people miss: **the numbers have to get to the cores.** Generating one token of Llama 2 7B
+means reading all 13.5 GB of weights. How fast memory can move data (**memory bandwidth**) often limits speed more
+than how fast the cores can multiply.
+
+## 4. Mental model
+
+**A GPU is a factory with thousands of workers. Throughput is limited either by the workers or by the loading dock.**
+
+This adapts Horace He's factory-and-warehouse analogy from *Making Deep Learning Go Brrrr From First Principles*
+(in the sources).
+
+```
+  memory (weights, activations)
+  ┌────────────────────────┐   loading dock:
+  │  13.5 GB of weights    │═══ memory bandwidth (GB/s) ═══╗
+  └────────────────────────┘                               ║
+                                                           ▼
+          ┌──────────────────────────────────────────────────┐
+          │ workers: thousands of cores (FLOPs per second)   │
+          └──────────────────────────────────────────────────┘
+ compute-bound: workers are busy, dock is idle (training, prompts)
+ memory-bound:  workers wait on the dock (generating tokens)
+```
+
+## 5. How it works internally
+
+**Matrix multiplication.** For `C = A × B` with `n × n` matrices, each cell is
+`C[i][j] = sum over k of A[i][k] × B[k][j]`. That's `n³` multiplies and `n³` adds, so about `2n³` FLOPs. Crucially,
+**every cell is independent**: cell `(0, 0)` doesn't need cell `(5, 7)`. You can hand rows to different cores with no
+coordination. That's the definition of an "embarrassingly parallel" workload.
+
+**Where it shows up in a transformer.** Each layer multiplies token vectors by weight matrices: 4,096 × 4,096 for
+attention projections in Llama 2 7B, and 4,096 × 11,008 for the feed-forward layers. When you process many tokens at
+once (a whole training batch, or reading a prompt), those are matrix-times-matrix operations. When you generate one
+token, each layer is a matrix times a single vector.
+
+**Three things set speed.** From Horace He's framing:
+
+1. **Compute:** how many FLOPs per second the chip can do. An NVIDIA A100's datasheet lists **312 TFLOPS**
+   (trillion FLOPs per second) at 16-bit with its tensor cores.
+2. **Memory bandwidth:** how many gigabytes per second can move between memory and the cores. The A100 80GB lists
+   **2,039 GB/s**. Apple's tech specs list 150 GB/s for the M3 Pro laptop chip; typical desktop CPU memory is well below that.
+3. **Overhead:** everything that isn't the math: launching work, Python or JS glue, copying data, coordinating
+   threads or machines.
+
+**Compute-bound vs memory-bound.**
+
+- **Training and reading prompts ("prefill")** process many tokens per weight read, so the cores stay busy:
+  compute-bound.
+- **Generating tokens ("decode")** runs a forward pass per token (lesson 1.1.9), and each pass reads every weight to
+  do a small amount of math. The cores finish quickly and wait: memory-bound.
+
+For Llama 2 7B on one A100, the code example computes:
+
+| Limit | Tokens per second |
+|---|---|
+| Compute: 312 × 10¹² FLOPs/s ÷ 1.35 × 10¹⁰ FLOPs/token | about 23,000 |
+| Memory: 2,039 GB/s ÷ 13.5 GB of weights per token | about 151 |
+
+Memory is the bottleneck by about 150×. Real systems land below 151 tokens/s for a single user, because of the
+KV cache (lesson 1.3.11) and overhead.
+
+**Why batching works.** Serve 32 users at once and each step reads the weights **once** for all 32 tokens. The
+memory cost barely changes while the compute cost grows 32×, which the idle cores can absorb. Theoretical throughput
+rises from about 151 to about 4,840 tokens/s. That's why serving systems batch aggressively, and why providers
+discount asynchronous batch APIs.
+
+**Why quantization speeds things up.** Storing weights at 4-bit instead of 16-bit (lesson 1.1.5, Season 8) cuts the
+bytes read per token by 4×, so the memory limit rises about 4×, at some cost to quality.
+
+**Training at scale.** Llama 2 7B's pretraining did 8.09 × 10²² FLOPs in 184,320 GPU hours: about **122 TFLOPS per
+GPU on average, or 39% of the datasheet peak**. The rest goes to memory movement, communication between GPUs and
+overhead. This ratio is called **model FLOPs utilization (MFU)**.
+
+<Callout type="fact" title="Rough numbers, labeled as such">
+  The `2N` and `6N` rules ignore attention's cost growing with sequence length, and datasheet TFLOPS is a peak for
+  ideal kernels. Treat the 39% as a ballpark. The PaLM paper in the references defines MFU precisely.
+</Callout>
+
+**Why many GPUs.** Training state for a 7B model is about 108 GB (lesson 1.1.9), more than one 80 GB GPU. Large runs
+split the model and data across GPUs connected by fast links (NVLink at 600 GB/s on A100 systems, per the
+datasheet). The math parallelizes; the communication doesn't come free.
+
+## 6. Visual explanation
+
+Matrix multiply: every output cell is an independent dot product.
+
+```
+      A (n × n)            B (n × n)            C = A × B
+  ┌───────────┐       ┌──┬────────┐       ┌──┬────────┐
+  │ row i ────┼──·──▶ │c │        │  ═▶   │  │        │
+  │           │       │o │        │       │Cij        │
+  │           │       │l │        │       │  │        │
+  └───────────┘       │j │        │       │  │        │
+                      └──┴────────┘       └──┴────────┘
+  Cij = row i of A · column j of B     n² cells, no cell
+                                       depends on another
+```
+
+CPU vs GPU, schematically:
+
+```
+ CPU: few big cores              GPU: thousands of small cores
+ ┌──────┐┌──────┐                ┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐
+ │ core ││ core │                └┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘
+ └──────┘└──────┘                ┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐┌┐
+ ┌──────┐┌──────┐                └┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘└┘
+ │ core ││ core │                   ▲ very fast memory
+ └──────┘└──────┘                   ║ (2,039 GB/s on A100)
+ great at branching, varied work    great at the same math
+                                    on lots of numbers
+```
+
+Measured in this lesson's code (2,048 × 2,048, on an Apple M3 Pro laptop):
+
+```
+ naive loop order     1.01 GFLOPS  ██
+ cache-friendly       1.33 GFLOPS  ███
+ 11 threads          12.72 GFLOPS  ██████████████████████████
+ A100 (datasheet)       312,000 GFLOPS: ~24,500× the 11 threads
+```
+
+## 7. Connection to software engineering
+
+| Concept you know | Compute equivalent |
+|---|---|
+| CPU-bound vs I/O-bound services | Compute-bound (training, prefill) vs memory-bound (decode) |
+| Thread pool over independent requests | GPU cores over independent matrix cells |
+| Array of structs vs struct of arrays, cache locality | Loop order and memory layout in matrix kernels |
+| Database round-trip dominates query time | Reading weights dominates token generation |
+| Batching writes to amortize fsync | Batching users to amortize weight reads |
+| Compressing payloads to save bandwidth | Quantizing weights to raise tokens per second |
+| Coordination overhead in distributed systems | Communication between GPUs, measured by MFU |
+| Spinning up a worker costs more than tiny jobs | Launch overhead makes small ops slower in parallel |
+
+For **backend engineers**, the latency of an LLM call is roughly prefill time (grows with input length) plus
+per-token decode time × output tokens, which is why capping output length cuts latency most. For **frontend
+engineers**, it's why streaming exists: the first token comes quickly, and the rest arrive at the decode rate. For
+**distributed systems** engineers, large training runs are a network problem as much as a compute problem.
+
+## 8. Code example
+
+Multiplies square matrices three ways: a naive loop order, a cache-friendly loop order, and split across all CPU
+threads with `worker_threads` and shared memory. It reports FLOPs per second, then does napkin math for Llama 2 7B on
+an A100. Run it with `node --experimental-strip-types matmul.ts`. It uses top-level `await` and loads itself as a
+worker, and was tested with Node 25.6. **Timings depend on your machine**; the output below is from an Apple M3 Pro
+(11 cores).
+
+```ts
+import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
+import { availableParallelism } from 'node:os';
+
+// Multiply rows [from, to) of A×B into C. Matrices are flat Float32Arrays shared between threads.
+function multiplyRows(A: Float32Array, B: Float32Array, C: Float32Array, n: number, from: number, to: number, order: 'ijk' | 'ikj') {
+  for (let i = from; i < to; i++) {
+    if (order === 'ijk') {
+      for (let j = 0; j < n; j++) {
+        let sum = 0;
+        for (let k = 0; k < n; k++) sum += A[i * n + k] * B[k * n + j]; // walks B down a column: cache-unfriendly
+        C[i * n + j] = sum;
+      }
+    } else {
+      for (let k = 0; k < n; k++) {
+        const a = A[i * n + k];
+        for (let j = 0; j < n; j++) C[i * n + j] += a * B[k * n + j]; // walks B along a row: cache-friendly
+      }
+    }
+  }
+}
+
+if (!isMainThread) {
+  const { a, b, c, n, from, to } = workerData;
+  multiplyRows(new Float32Array(a), new Float32Array(b), new Float32Array(c), n, from, to, 'ikj');
+  parentPort!.postMessage('done');
+} else {
+  const shared = (n: number, fill: boolean) => {
+    const buf = new SharedArrayBuffer(n * n * 4), arr = new Float32Array(buf);
+    if (fill) for (let i = 0; i < arr.length; i++) arr[i] = Math.sin(i);
+    return { buf, arr };
+  };
+  const flops = (n: number) => 2 * n ** 3; // n³ multiplies + n³ adds
+  const time = async (f: () => void | Promise<void>) => { const t = performance.now(); await f(); return (performance.now() - t) / 1000; };
+
+  const threads = availableParallelism();
+  let best = 0; // fastest GFLOPS we measure, used for the napkin math below
+  console.log(`threads available: ${threads}`);
+  for (const n of [256, 1024, 2048]) {
+    const A = shared(n, true), B = shared(n, true);
+    const C1 = shared(n, false), C2 = shared(n, false), C3 = shared(n, false);
+    const tNaive = await time(() => multiplyRows(A.arr, B.arr, C1.arr, n, 0, n, 'ijk'));
+    const tLoop = await time(() => multiplyRows(A.arr, B.arr, C2.arr, n, 0, n, 'ikj'));
+    const tPar = await time(() => Promise.all(Array.from({ length: threads }, (_, t) => new Promise((res) => {
+      const from = Math.floor((t * n) / threads), to = Math.floor(((t + 1) * n) / threads);
+      new Worker(new URL(import.meta.url), { workerData: { a: A.buf, b: B.buf, c: C3.buf, n, from, to } }).once('message', res);
+    }))));
+    const same = C1.arr.every((v, i) => Math.abs(v - C3.arr[i]) <= 1e-3 * Math.abs(v) + 1e-3);
+    best = Math.max(best, flops(n) / tPar);
+    const g = (t: number) => (flops(n) / t / 1e9).toFixed(2);
+    console.log(`n=${n}: naive ${tNaive.toFixed(3)}s (${g(tNaive)} GFLOPS)  loop order ${tLoop.toFixed(3)}s (${g(tLoop)})  ${threads} threads ${tPar.toFixed(3)}s (${g(tPar)})  same result: ${same}`);
+  }
+
+  // ---------- Napkin math: one generated token of Llama 2 7B ----------
+  const N = 6.74e9, flopsPerToken = 2 * N, weightsGB = (N * 2) / 1e9; // fp16 = 2 bytes/param
+  const a100 = { flops: 312e12, bandwidthGBs: 2039 }; // NVIDIA A100 80GB datasheet (fp16 Tensor Core, SXM)
+  console.log(`\nLlama 2 7B, one token: ${flopsPerToken.toExponential(2)} FLOPs, reads ${weightsGB.toFixed(1)} GB of weights`);
+  console.log(`  this machine, JS threads: ${(flopsPerToken / best).toFixed(2)} s/token of compute`);
+  console.log(`  A100 compute limit:       ${(a100.flops / flopsPerToken).toFixed(0)} tokens/s`);
+  console.log(`  A100 memory-read limit:   ${(a100.bandwidthGBs / weightsGB).toFixed(0)} tokens/s  <- the real bottleneck`);
+  const trainSeconds = 184_320 * 3600, trainFlops = 6 * N * 2e12;
+  console.log(`  pretraining: ${(trainFlops / trainSeconds / 1e12).toFixed(0)} TFLOPS per GPU on average = ${((trainFlops / trainSeconds / a100.flops) * 100).toFixed(0)}% of the datasheet peak`);
+}
+```
+
+Output:
+
+```
+threads available: 11
+n=256: naive 0.022s (1.55 GFLOPS)  loop order 0.018s (1.89)  11 threads 0.090s (0.37)  same result: true
+n=1024: naive 1.297s (1.66 GFLOPS)  loop order 1.016s (2.11)  11 threads 0.227s (9.47)  same result: true
+n=2048: naive 16.964s (1.01 GFLOPS)  loop order 12.889s (1.33)  11 threads 1.351s (12.72)  same result: true
+
+Llama 2 7B, one token: 1.35e+10 FLOPs, reads 13.5 GB of weights
+  this machine, JS threads: 1.06 s/token of compute
+  A100 compute limit:       23145 tokens/s
+  A100 memory-read limit:   151 tokens/s  <- the real bottleneck
+  pretraining: 122 TFLOPS per GPU on average = 39% of the datasheet peak
+```
+
+What to take from it:
+
+- **Parallelism pays when the work is big.** At 2,048 × 2,048, 11 threads took 1.351 s against 12.889 s for the
+  same cache-friendly loop on one thread: **9.5× faster**. The rows really are independent.
+- **Overhead dominates small work.** At 256 × 256, the threaded version was **5× slower** (0.090 s vs 0.018 s):
+  starting workers costs more than the math. GPUs have the same issue with small operations, which is why
+  frameworks fuse them.
+- **Memory access patterns matter.** Loop order alone gave 1.33 vs 1.01 GFLOPS at 2,048, and the naive version
+  slowed from 1.66 to 1.01 GFLOPS as matrices outgrew the CPU cache. Same math, different memory traffic.
+- **The gap to a GPU is enormous.** At 12.72 GFLOPS, one 4,096 × 4,096 multiply takes about 10.8 s here. At the
+  A100's datasheet 312 TFLOPS, it's about 0.44 ms. The comparison is rough (32-bit JS vs 16-bit tensor cores),
+  but the scale is right.
+- **Generation is memory-bound.** An A100 could do about 23,145 Llama 2 7B tokens/s of compute, but can only read
+  the weights fast enough for about 151.
+- **Training doesn't hit the peak either:** about 122 TFLOPS on average, 39% of the datasheet figure.
+
+## 9. Real-world example
+
+**An illustrative scenario: a team self-hosts a 7B model for an internal coding assistant.** A single-user benchmark
+gives 90 tokens/s on one A100. At launch, 40 engineers use it and the team plans to buy 40 GPUs.
+
+An engineer who understands the bottleneck pushes back:
+
+1. **Decode is memory-bound.** One user leaves the GPU's compute almost idle. Batching many users into each step
+   reads the weights once for all of them.
+2. **Use a serving engine with continuous batching**, which adds and removes requests from the running batch every
+   step (Season 7). Throughput for all users together rises many times, while each user's tokens/s drops only
+   somewhat.
+3. **Watch the KV cache.** Each user's conversation keeps attention state in GPU memory (lesson 1.3.11), so memory
+   capacity, not compute, caps how many users fit in a batch.
+4. **Consider quantization.** 8-bit or 4-bit weights free memory for more users and raise the memory-bandwidth limit,
+   after checking quality on the team's evals.
+5. **Measure the right metrics:** time to first token (prefill), tokens per second per user (decode), and total
+   throughput per GPU.
+
+They start with two GPUs behind a batching server and add more based on measured latency.
+
+<Callout type="practice">
+  Before choosing hardware or a provider tier, classify the workload. Long prompts with short outputs (classification,
+  extraction) are compute-bound prefill. Short prompts with long outputs (chat, code generation) are memory-bound
+  decode. The same model can need very different setups for each.
+</Callout>
+
+## 10. Common mistakes
+
+- **Comparing chips by FLOPs alone.** For generation, memory bandwidth and capacity usually matter more.
+- **Assuming "the model fits" means "the model is fast".** A 7B model at 4-bit fits in a laptop's memory; its token
+  rate is set by that laptop's memory bandwidth. At 150 GB/s, that's at most about 44 tokens/s at 4-bit, or 11 at 16-bit.
+- **Benchmarking with one user.** Single-request numbers hide how well the system batches.
+- **Parallelizing tiny operations.** Launch and coordination overhead can make them slower, as the 256 × 256 result
+  shows.
+- **Ignoring output length in latency budgets.** Decode time grows linearly with output tokens.
+- **Assuming more GPUs scale linearly.** Communication between GPUs adds overhead; utilization well below 100% is
+  normal.
+- **Forgetting training memory.** A GPU that serves a model can't necessarily train it (lesson 1.1.9).
+
+## 11. Limitations
+
+- **Napkin math is approximate.** `2N` per token ignores attention's growth with context length, and datasheet
+  numbers are peaks for ideal workloads.
+- **Hardware changes fast.** Newer GPUs and accelerators raise both FLOPs and memory bandwidth; the exact numbers here
+  are for the A100 used to train Llama 2. The compute-bound vs memory-bound reasoning carries over.
+- **The JS benchmark is a teaching tool.** Real kernels use SIMD, cache blocking and hand-tuned libraries (BLAS on
+  CPUs, cuBLAS on NVIDIA GPUs) and are far faster than these loops.
+- **Energy, cooling and availability** often constrain real deployments more than chip specs. They aren't covered here.
+
+## 12. When to use it
+
+- **Estimating serving speed:** tokens/s per user ≈ memory bandwidth ÷ bytes of weights read per token, as an upper
+  bound.
+- **Sizing hardware:** weights + KV cache must fit in GPU memory; training needs several times more (lesson 1.1.9).
+- **Explaining latency:** split into prefill (input length, compute-bound) and decode (output length, memory-bound).
+- **Choosing optimizations:** batching and quantization for memory-bound decode; faster kernels and fewer wasted
+  FLOPs for compute-bound training and prefill.
+- **Reading provider pricing:** one reason output tokens cost more than input tokens is that decode can't share
+  weight reads the way prefill does.
+
+## 13. When NOT to use it
+
+- **Hosted APIs where you don't pick hardware.** You mostly need the latency model (prefill + decode) and pricing,
+  not GPU specs.
+- **Small classical models.** A logistic regression or gradient-boosted tree runs fine on CPUs; GPUs add cost and
+  overhead.
+- **Workloads that aren't matrix math.** Tokenization, retrieval glue and business logic belong on CPUs.
+- **Low, sporadic traffic.** A dedicated GPU sitting idle is expensive; a hosted API or CPU inference with a small
+  quantized model may be cheaper.
+
+## 14. Interview explanation (30 seconds)
+
+> Neural networks are dominated by matrix multiplication, which breaks into many independent multiply-and-add
+> operations. GPUs have thousands of cores and very fast memory, so they run that math in parallel far faster than
+> CPUs. But there are two limits: compute and memory bandwidth. Training and prompt processing are compute-bound.
+> Generating tokens is memory-bound, because every token reads all the weights. For a 7B model at 16-bit on an A100,
+> memory bandwidth allows about 150 tokens per second for one user, while compute could do over 20,000. That's why
+> batching and quantization matter so much for serving.
+
+## 15. Deep interview explanation (2–5 minutes)
+
+Start with the workload. Each layer is a linear transform: token vectors multiplied by weight matrices, plus
+activations. For an `n × n` multiply, that's about `2n³` FLOPs, and each output cell is independent, so it's
+embarrassingly parallel. A 4,096 × 4,096 multiply is about 137 billion FLOPs.
+
+Contrast hardware. CPUs have few powerful cores and are optimized for branching and low latency on varied work. GPUs
+have thousands of simpler cores plus high-bandwidth memory. In a quick benchmark, JavaScript on 11 laptop cores did
+about 12.7 GFLOPS on this math; an A100 lists 312 TFLOPS at 16-bit, about 24,000× more.
+
+Introduce the three bottlenecks: compute, memory bandwidth and overhead. Parallelizing a 256 × 256 multiply across
+threads made it 5× slower because of startup overhead, while a 2,048 × 2,048 multiply got 9.5× faster.
+
+Then the key insight for LLMs. Generating a token of Llama 2 7B needs about 1.35 × 10¹⁰ FLOPs, trivial for an A100,
+but also reads 13.5 GB of weights. With 2,039 GB/s of memory bandwidth, that's about 151 tokens per second at most,
+versus about 23,000 by compute. So decode is memory-bound, and the fixes target memory: batch many users per weight
+read, quantize to read fewer bytes, and manage the KV cache. Prefill and training are compute-bound.
+
+Finish with scale. Llama 2 7B training averaged about 122 TFLOPS per GPU, around 39% of peak, because multi-GPU
+training spends time on communication and memory movement. That utilization, MFU, is what infrastructure teams
+optimize.
+
+## 16. Hands-on exercise
+
+Run the code example, then:
+
+1. **Your machine.** Record your thread count and GFLOPS at each size. At what size does the threaded version start
+   beating the single-threaded cache-friendly loop? (Try adding 512.)
+2. **Napkin math: bigger model.** Llama 2 70B has about 70 billion parameters. At 16-bit, how much memory do its
+   weights need? Does it fit on one A100 80GB? What are the compute and memory-bandwidth token limits on an A100,
+   ignoring whether it fits?
+3. **Napkin math: batching and quantization.** For Llama 2 7B on an A100, what's the memory-bandwidth limit with
+   4-bit weights? With 32 users batched at 16-bit, is the batch still memory-bound, and what's the theoretical total
+   throughput?
+
+<Answer label="Answers">
+  1. It depends on your hardware. On the M3 Pro, an earlier run with 512 × 512 took 0.140 s single-threaded and 0.096 s
+     with 11 threads, so threads start winning somewhere between 256 and 512. At 256 they were slower.
+  2. 70 × 10⁹ × 2 bytes = **140 GB**, so it doesn't fit on one 80 GB A100; you need at least two, or quantization.
+     Compute limit: 312 × 10¹² ÷ (2 × 70 × 10⁹) ≈ **2,229 tokens/s**. Memory limit: 2,039 ÷ 140 ≈ **14.6 tokens/s**.
+     Still memory-bound, by a lot.
+  3. At 4-bit the weights are about 3.37 GB, so the limit is 2,039 ÷ 3.37 ≈ **605 tokens/s**. With 32 users,
+     compute allows 312 × 10¹² ÷ (1.35 × 10¹⁰ × 32) ≈ 723 steps/s, still above the 151 steps/s memory limit, so it's
+     still memory-bound. Theoretical throughput is 32 × 151 ≈ **4,840 tokens/s**, before KV-cache memory.
+</Answer>
+
+## 17. Challenge
+
+Make the JavaScript matrix multiply as fast as you can, and measure why each change helps.
+
+1. **Cache blocking.** Multiply in blocks (say 64 × 64) so each block's data stays in the CPU cache. Compare GFLOPS
+   at 2,048 with and without blocking, single-threaded.
+2. **Worker pool.** Start workers once and reuse them across multiplies. Find the new size at which threads beat one
+   thread.
+3. **Batch vs sequential.** Simulate decode: multiply a 2,048 × 2,048 weight matrix by 32 vectors one at a time, then
+   stack the vectors into a 32 × 2,048 matrix and do one multiply. Compare time per vector.
+4. **Precision.** Compare `Float64Array` with `Float32Array`. Which is faster, and does the result change beyond
+   rounding?
+5. **Stretch:** run the same multiply on your GPU with WebGPU in a browser, and compare GFLOPS including the time to
+   copy data to and from the GPU.
+
+<Answer label="Hints">
+  For blocking, loop over block start indices `ii, kk, jj` in steps of the block size, then run the cache-friendly
+  `i-k-j` order inside each block. For the batch simulation, the single stacked multiply should win per vector because
+  the weight matrix stays hot in cache across all 32 rows, the CPU version of reading weights once per batch.
+  `Float32Array` halves bytes moved, so expect it to be faster at large sizes. With WebGPU, small matrices will lose
+  to the CPU because of copy overhead, the same lesson as the 256 × 256 thread result.
+</Answer>
+
+## 18. Sources and acknowledgements
+
+This lesson is original writing. Its explanations, diagrams, code and datasets were created for this course, except where the text credits another source. The facts, figures and ideas it builds on come from the sources below, and specific numbers, results and framings are credited where they appear.
