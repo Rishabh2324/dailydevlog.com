@@ -2,18 +2,21 @@
 
 Audience: a professional frontend developer who already knows TypeScript, React, APIs, Git, testing, CI/CD, Jira
 and Figma. Don't teach programming fundamentals. Plan doc: `docs/ai-native-engineering-plan.md`. Original spec:
-`docs/ai-native-engineering-spec.md`. Reference lesson:
-`src/content/ai-native-engineering/lessons/s1/where-the-time-goes.mdx`.
+`docs/ai-native-engineering-spec.md`. No published reference lesson yet.
 
 Every lesson answers one question: **"How would a good engineer use AI for this task?"**
 
 ## What a lesson should feel like
 
-The reader should finish in **10–15 minutes** without losing the thread. They should always know *why* they are
+The reader should finish in **5–10 minutes** without losing the thread. They should always know *why* they are
 reading the current paragraph. One lesson teaches **one idea** and **one thing to do**. If a lesson needs more,
 split the topic or cut.
 
-Target length: **900–1,400 words** of prose (prompts and short outputs don't count much, but keep them short too).
+The "one thing to do" must be a task a frontend developer really does at work (write a ticket, review a PR, debug a
+bug, plan a feature). Analysis-for-its-own-sake lessons (for example "measure where your time goes") are out: the
+reader found no purpose in them.
+
+Target length: **600–900 words** of prose (prompts and short outputs don't count much, but keep them short too).
 
 ## Body sections
 
@@ -21,18 +24,18 @@ Use exactly these `##` sections, in this order. No numbers in headings.
 
 1. **Why this matters** — 2–4 sentences. Start from a situation the reader knows from work. End with one line:
    "By the end of this lesson, you'll be able to …" (one concrete skill, not a list).
-2. **The idea** — the one idea of the lesson in plain words. At most one small diagram (fenced `text` block, lines
-   ≤ 60 chars). A number or a finding from research is fine if it makes the idea land; credit it.
-3. **How to do it** — 3–6 numbered steps. Mark the steps where a human must decide with **(you decide)**.
-4. **Example** — the running project (ShipLog). A short prompt, a short trimmed real output, and 2–4 bullets on what
-   the engineer checked or changed. This is where "verify the AI" is shown, not lectured.
-5. **Watch out** — 3–5 bullets mixing the biggest mistakes, risks, and when *not* to use AI here.
-6. **Try it** — one exercise that takes about 20–30 minutes on real work or ShipLog. Say what "done" looks like in one
+2. **How to do it** — 3–6 numbered steps. Mark the steps where a human must decide with **(you decide)**.
+3. **Example** — the running project (ShipLog). A short prompt, a short trimmed real output, and 2–4 bullets on what
+   the engineer checked or changed. This is where "verify the AI" is shown, not lectured, and where the lesson's
+   point should land through the numbers rather than a separate explanation.
+4. **Watch out** — 3–5 bullets mixing the biggest mistakes, risks, and when *not* to use AI here.
+5. **Try it** — one exercise that takes about 20–30 minutes on real work or ShipLog. Say what "done" looks like in one
    line. Put hints or a sample answer in `<Answer>`.
-7. **Remember** — exactly 3 short bullets the reader should keep, then one line: "Next: lesson X.Y.Z, …" saying
+6. **Remember** — exactly 3 short bullets the reader should keep, then one line: "Next: lesson X.Y.Z, …" saying
    why the next lesson follows from this one.
-8. **Sources and acknowledgements** — the standard acknowledgement paragraph from `SKILL.md`.
+7. **Sources and acknowledgements** — the standard acknowledgement paragraph from `SKILL.md`.
 
+No "The idea" or concept-explainer section: readers found it dull. Don't lecture the idea; show it in the Example.
 No interview section, no "tools today" tour, no autonomy table, no team section, no challenge. Mention a tool, a
 team practice or an approval rule only when it is the point of the lesson (for example in Season 1.3 on autonomy).
 
@@ -63,5 +66,6 @@ team practice or an approval rule only when it is the point of the lesson (for e
   docs and set `lastVerified`. Describe the capability before naming a product.
 - Use the running project and examples from the plan doc so lessons build on each other.
 - Credit research inline, briefly: "(Atlassian, 2025)". Every inline credit must be in `references` (2–5 entries).
+  Don't add studies or statistics to make a lesson sound serious; use one only when it changes what the reader does.
 - The last lesson of a module adds `## Module check` before Sources: 5 short questions and 1 practical task, with
   answers inside `<Answer>`. Keep it under 300 words.

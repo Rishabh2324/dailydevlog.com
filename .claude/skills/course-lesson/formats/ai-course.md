@@ -19,7 +19,8 @@ Use exactly these `##` sections, in this order. No numbers in headings.
 1. **Why this matters** — 2–4 sentences: where the reader meets this term (a product, a doc, a meeting). End with
    "By the end of this lesson, you'll …" (one concrete outcome).
 2. **The idea** — a one or two sentence definition in plain words, then a short explanation. No formulas. A tiny
-   number example is fine if it makes the idea click.
+   number example is fine if it makes the idea click. Keep it to about 150 words, and tie it to a concrete case
+   straight away; a long abstract explanation loses the reader.
 3. **A real-life example** — an everyday situation that works the same way (cooking, a new job, a GPS, a spam
    folder…), followed by one real product or AI system where the idea shows up. Credit well-known analogies.
 4. **How it works** — the basic mechanism in 3–6 short steps or paragraphs, optionally one small diagram (fenced

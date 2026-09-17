@@ -13,11 +13,10 @@
       title: From traditional to AI-native development
       summary: How software is built today, and how AI-assisted and AI-native development differ from it.
       topics:
-        - { id: '1.1.1', title: 'How software gets built, and where the time goes', slug: where-the-time-goes, level: L1 }
-        - { id: '1.1.2', title: 'AI-assisted vs AI-native development', level: L1 }
-        - { id: '1.1.3', title: 'The ladder: from AI assistant to AI-native engineering system', slug: ai-maturity-ladder, level: L1 }
-        - { id: '1.1.4', title: 'The AI-native engineering loop', level: L1 }
-        - { id: '1.1.5', title: 'Augment, not replace: engineering judgment', slug: engineering-judgment, level: L1 }
+        - { id: '1.1.1', title: 'AI-assisted vs AI-native development', level: L1 }
+        - { id: '1.1.2', title: 'The ladder: from AI assistant to AI-native engineering system', slug: ai-maturity-ladder, level: L1 }
+        - { id: '1.1.3', title: 'The AI-native engineering loop', level: L1 }
+        - { id: '1.1.4', title: 'Augment, not replace: engineering judgment', slug: engineering-judgment, level: L1 }
     - id: '1.2'
       title: The roles AI plays
       summary: Pair programmer, researcher, planner, reviewer, debugger, architect, agent — and picking the right one.

@@ -30,6 +30,25 @@ When the user says "today's lessons" or similar without naming topics:
    says what they learned today, write the lesson(s) matching that and ask before reordering the outline.
 3. Follow the steps below for each lesson, then finish with the wrap-up.
 
+## Write so the reader can learn (both courses)
+
+The reader is the user, learning these topics themselves. They have pushed back on lessons that were long, read
+like AI output, lectured an idea, or had no clear use (one lesson was deleted for that). Every lesson must pass
+these checks:
+
+- **Clear use first.** Before writing, finish this sentence: "After this lesson the reader can ___ at work." If
+  you can't fill it with something they'd really do or need, don't write the lesson. Tell the user and suggest
+  merging or cutting the topic.
+- **Start from their problem.** Open with a situation they've been in, not a definition, statistic or history.
+- **Show, then name.** Give the example or the concrete case first, then name the idea in one line. Don't write
+  paragraphs that explain an idea without an example.
+- **Plain words.** Write the way you'd explain it to a friend at the next desk. Define jargon in a few words the
+  first time. If a simpler word works, use it.
+- **Earn each paragraph.** For every paragraph, ask: "Does the reader learn or do something because of this?" If
+  not, cut it. Research numbers are allowed only when they change what the reader does, and at most one or two.
+- **Short.** Stay inside the format file's word target. When in doubt, cut.
+- **Reread as a beginner** before finishing. Mark any sentence you had to read twice and rewrite it.
+
 ## Steps
 
 0. Identify the course. Read its **plan doc** (status, per-module notes, running examples, lessons learned) and its
@@ -58,7 +77,8 @@ When the user says "today's lessons" or similar without naming topics:
      and emerging techniques explicitly; don't present them as facts.
    - `<Answer label="...">` wraps any answer so readers try first.
 6. For the **last lesson of a module**, add the module assessment the format file describes.
-7. Run `npx astro build`, and fix any failure before reporting done.
+7. Check the lesson against "Write so the reader can learn" above and cut what fails.
+8. Run `npx astro build`, and fix any failure before reporting done.
 
 ## Wrap-up (every session)
 

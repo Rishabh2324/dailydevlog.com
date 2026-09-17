@@ -21,16 +21,15 @@ short 8-section lesson format (reworked 2026-09-17 after reader feedback). This 
 
 ## Status
 
-Outline: Seasons 1–4 (Parts 0–2), 76 topics. **Seasons 5+ (UX, UI, building, testing, shipping, operating,
+Outline: Seasons 1–4 (Parts 0–2), 75 topics. **Seasons 5+ (UX, UI, building, testing, shipping, operating,
 automating) are waiting on the rest of the spec.** When it arrives, add them to `course.yaml` and extend the
 Parts list in `roadmap.mdx`.
 
 Published lessons (update after each session; `npm run course:next` is the ground truth):
 
-- [x] 1.1.1 How software gets built, and where the time goes
-- [ ] **1.1.2 AI-assisted vs AI-native development** ← next
+- [ ] **1.1.1 AI-assisted vs AI-native development** ← next
 
-Total: 1 of 76.
+Total: 0 of 75.
 
 ## Session workflow
 
@@ -53,29 +52,26 @@ Total: 1 of 76.
 - Season 2 turns the "subscriber email notifications" idea into a PRD, stories, acceptance criteria and a plan.
   Season 3 researches the email provider and queue options. Season 4 designs the notification architecture and
   writes an ADR.
-- **SHIP-142 "Public changelog page"** (1.1.1): invented Jira/GitHub event log, 48 working hours elapsed (09:00–17:00),
-  15.5 active / 32.5 waiting; coding 5 h (10%), PM clarification wait 11.5 h (24%), review waits 5.5 + 3.5 h, deploy
-  queue 5.5 h. Amdahl: 2× coding → about 5%; halving clarification wait → 12%. Reuse in 1.1.2–1.1.4 and 2.2.2
-  (the three questions: 404 vs redirect, pagination, SEO owner).
 - Swap ShipLog for a real work project in exercises whenever you can, but never paste confidential code or
   data into a tool your company hasn't approved.
 
 ## Lessons learned (apply to every lesson)
 
-- Reader feedback on 1.1.1 (2026-09-17): the 17-section version was too long and felt AI-generated. Keep lessons to
-  one idea, 900–1,400 words, simple English, and a clear purpose line at the top. See the writing rules in the format file.
+- Reader feedback (2026-09-17): long lessons felt AI-generated, a separate "The idea" section was boring, and a
+  lesson on measuring where feature time goes (old 1.1.1) had no clear purpose and was removed. Keep lessons to one
+  practical task, 600–900 words, simple English, and a clear purpose line at the top. See the format file.
 - Trimming real AI output means removing rows or lines and marking it; never merge or reword the output.
 - Real AI output: run prompts with `claude -p "$(cat prompt.md)" --model sonnet` from the scratchpad, label the
   model and date, and mark trims with `[... trimmed ...]` in their original positions.
 - Always recompute AI-produced numbers in the lesson and show one correction the engineer made; there is usually a
-  real one (1.1.1: 5 h vs 6 h design wait).
+  real one.
 - Name events and invented logs as invented in a `note` callout; use roles, not names.
 - METR 2025 (19% slower) has a 2026 follow-up that points toward speedups but is unreliable (selection bias). Cite
   both whenever citing either.
 
 ## Module notes
 
-- **1.1:** Keep 1.1.3 (the ladder) and 1.1.4 (the loop) as the two diagrams the whole course refers back to.
+- **1.1:** Keep 1.1.2 (the ladder) and 1.1.3 (the loop) as the two diagrams the whole course refers back to.
 - **1.2:** Each role lesson uses the same shape: the task, the role, one worked ShipLog example, and when that role
   is the wrong choice. 1.2.8 ends with a task → role decision table.
 - **1.3:** Tie autonomy levels to concrete permissions (read-only, edit files, run commands, push, deploy).
