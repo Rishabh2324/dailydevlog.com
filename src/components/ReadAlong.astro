@@ -1,0 +1,194 @@
+<!--
+  Read-along: listens to the reader's voice (Web Speech API) and highlights
+  words in the [data-read-along] container as they are spoken.
+  Hidden in browsers without SpeechRecognition (e.g. Firefox).
+-->
+<div id="read-along" hidden class="fixed right-4 bottom-4 z-50 flex items-center gap-2">
+  <span
+    id="read-along-status"
+    class="hidden rounded-full bg-ink/90 px-3 py-1.5 text-xs text-on-dark shadow dark:bg-surface dark:text-ink"
+  >
+    Listening… tap any word to jump there
+  </span>
+  <button
+    id="read-along-toggle"
+    type="button"
+    aria-pressed="false"
+    class="flex items-center gap-2 rounded-full border border-hairline-strong bg-canvas px-4 py-2 text-sm font-medium text-ink shadow-md transition-colors hover:border-brand-green-dark dark:bg-canvas-dark dark:text-on-dark"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="size-4">
+      <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path>
+    </svg>
+    <span id="read-along-label">Read along</span>
+  </button>
+</div>
+
+<style is:global>
+  .ra-word {
+    border-radius: 3px;
+    transition: background-color 120ms, color 120ms;
+  }
+  .ra-reading .ra-word {
+    cursor: pointer;
+  }
+  .ra-read {
+    color: var(--color-brand-green-dark);
+  }
+  .dark .ra-read {
+    color: var(--color-brand-green);
+  }
+  .ra-current {
+    background-color: var(--color-brand-green-soft);
+    color: var(--color-ink);
+  }
+  .dark .ra-current {
+    background-color: var(--color-brand-green-dark);
+    color: var(--color-on-dark);
+  }
+</style>
+
+<script>
+  const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const root = document.querySelector<HTMLElement>('[data-read-along]');
+  const widget = document.getElementById('read-along')!;
+
+  if (Recognition && root) {
+    widget.hidden = false;
+    const toggle = document.getElementById('read-along-toggle')!;
+    const label = document.getElementById('read-along-label')!;
+    const status = document.getElementById('read-along-status')!;
+
+    // How far ahead of the current position a spoken word may match.
+    // Lets the reader skip a few words without losing their place.
+    const LOOKAHEAD = 8;
+
+    const normalize = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+    let words: HTMLSpanElement[] = [];
+    let cursor = 0; // index of the next word expected
+    let listening = false;
+    let recognition: any = null;
+    let consumed = new Map<number, number>(); // result index -> words already matched
+
+    function wrapWords() {
+      if (words.length) return;
+      const walker = document.createTreeWalker(root!, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) =>
+          node.textContent!.trim() && !node.parentElement!.closest('pre, svg, script, style')
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT,
+      });
+      const nodes: Text[] = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+
+      for (const node of nodes) {
+        const frag = document.createDocumentFragment();
+        for (const part of node.textContent!.split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part) || !normalize(part)) {
+            frag.append(part);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'ra-word';
+            span.textContent = part;
+            span.dataset.raIndex = String(words.length);
+            span.dataset.raKey = normalize(part);
+            words.push(span);
+            frag.append(span);
+          }
+        }
+        node.replaceWith(frag);
+      }
+    }
+
+    function moveTo(index: number) {
+      words[cursor - 1]?.classList.remove('ra-current');
+      for (let i = 0; i < words.length; i++) words[i].classList.toggle('ra-read', i < index);
+      cursor = index;
+      markCurrent();
+    }
+
+    function markCurrent() {
+      const current = words[cursor - 1];
+      if (!current) return;
+      current.classList.add('ra-current');
+      const rect = current.getBoundingClientRect();
+      if (rect.top < 80 || rect.bottom > window.innerHeight * 0.75) {
+        current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+
+    function hear(spoken: string) {
+      const key = normalize(spoken);
+      if (!key) return;
+      const end = Math.min(words.length, cursor + LOOKAHEAD);
+      for (let i = cursor; i < end; i++) {
+        if (words[i].dataset.raKey === key) {
+          words[cursor - 1]?.classList.remove('ra-current');
+          for (let j = cursor; j <= i; j++) words[j].classList.add('ra-read');
+          cursor = i + 1;
+          markCurrent();
+          return;
+        }
+      }
+    }
+
+    function start() {
+      wrapWords();
+      recognition = new Recognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = document.documentElement.lang || 'en-US';
+      consumed = new Map();
+
+      recognition.onresult = (event: any) => {
+        for (let r = event.resultIndex; r < event.results.length; r++) {
+          const spoken = event.results[r][0].transcript.trim().split(/\s+/);
+          const done = consumed.get(r) ?? 0;
+          spoken.slice(done).forEach(hear);
+          consumed.set(r, Math.max(done, spoken.length));
+        }
+      };
+      recognition.onerror = (event: any) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          status.textContent = 'Microphone access was blocked';
+          stop();
+        }
+      };
+      // Chrome ends the session after a pause; keep listening until the reader stops.
+      recognition.onend = () => {
+        if (listening) {
+          consumed = new Map();
+          recognition.start();
+        }
+      };
+
+      listening = true;
+      recognition.start();
+      root!.classList.add('ra-reading');
+      toggle.setAttribute('aria-pressed', 'true');
+      label.textContent = 'Stop';
+      status.textContent = 'Listening… tap any word to jump there';
+      status.classList.remove('hidden');
+    }
+
+    function stop() {
+      listening = false;
+      recognition?.stop();
+      root!.classList.remove('ra-reading');
+      toggle.setAttribute('aria-pressed', 'false');
+      label.textContent = 'Read along';
+      if (status.textContent!.startsWith('Listening')) status.classList.add('hidden');
+    }
+
+    toggle.addEventListener('click', () => (listening ? stop() : start()));
+
+    // While reading, clicking a word sets the position to that word.
+    root.addEventListener('click', (e) => {
+      if (!listening) return;
+      const word = (e.target as HTMLElement).closest<HTMLElement>('.ra-word');
+      if (word && !word.closest('a')) moveTo(Number(word.dataset.raIndex));
+    });
+  }
+</script>

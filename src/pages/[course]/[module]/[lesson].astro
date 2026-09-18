@@ -3,6 +3,7 @@ import { render } from 'astro:content';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import Badge from '../../../components/Badge.astro';
 import TopicList from '../../../components/course/TopicList.astro';
+import ReadAlong from '../../../components/ReadAlong.astro';
 import { formatDate } from '../../../lib/format';
 import { COURSE_IDS, getAllTopics, getCourse, levelInfo, moduleSlug } from '../../../lib/courses';
 
@@ -106,6 +107,7 @@ const tiers = [
       </header>
 
       <div
+        data-read-along
         class="prose prose-neutral mt-8 max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-a:text-brand-green-dark dark:prose-invert dark:prose-a:text-brand-green"
       >
         <Content />
@@ -183,4 +185,5 @@ const tiers = [
       </div>
     </aside>
   </div>
+  <ReadAlong />
 </BaseLayout>

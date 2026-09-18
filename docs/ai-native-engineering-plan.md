@@ -27,9 +27,10 @@ Parts list in `roadmap.mdx`.
 
 Published lessons (update after each session; `npm run course:next` is the ground truth):
 
-- [ ] **1.1.1 AI-assisted vs AI-native development** ← next
+- [x] 1.1.1 AI-assisted vs AI-native development
+- [ ] **1.1.2 The ladder: from AI assistant to AI-native engineering system** ← next
 
-Total: 0 of 75.
+Total: 1 of 75.
 
 ## Session workflow
 
@@ -52,6 +53,9 @@ Total: 0 of 75.
 - Season 2 turns the "subscriber email notifications" idea into a PRD, stories, acceptance criteria and a plan.
   Season 3 researches the email provider and queue options. Season 4 designs the notification architecture and
   writes an ADR.
+- **SHIP-155 "Copy link button"** (1.1.1): add a Copy link button to each `ChangelogEntry` (`<article id={entry.slug}>`).
+  AI asked 7 questions (what to copy, feedback, execCommand fallback, analytics…); engineer chose full URL with
+  `#slug`, "Copied" for 2 s, no fallback, analytics to PM. Reuse as the small-ticket example in 1.1.2–1.1.3.
 - Swap ShipLog for a real work project in exercises whenever you can, but never paste confidential code or
   data into a tool your company hasn't approved.
 
