@@ -9,15 +9,13 @@ const tags = [...new Set(entries.flatMap((e) => e.tags))].sort();
 const kinds = [
   { value: 'dsa', label: 'DSA' },
   { value: 'daily-log', label: 'Daily Log' },
-  { value: 'ai-course', label: 'AI Course' },
-  { value: 'ai-native-engineering', label: 'AI-Native SWE' },
 ];
 ---
 
-<BaseLayout title="Search" description="Search and filter every DSA problem, daily log entry and course lesson.">
+<BaseLayout title="Search" description="Search and filter every DSA problem and daily log entry.">
   <header>
     <h1 class="text-3xl font-semibold tracking-tight text-ink">Search</h1>
-    <p class="mt-2 max-w-2xl text-slate">Filter across every DSA problem, daily entry and course lesson.</p>
+    <p class="mt-2 max-w-2xl text-slate">Filter across every DSA problem and daily entry.</p>
   </header>
 
   <div class="mt-6">

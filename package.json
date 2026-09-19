@@ -9,8 +9,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro",
-    "course:next": "node scripts/course-next.mjs"
+    "astro": "astro"
   },
   "dependencies": {
     "@astrojs/mdx": "^7.0.8",
