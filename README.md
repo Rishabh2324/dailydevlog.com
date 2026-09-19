@@ -4,8 +4,8 @@
 
 **Building software engineering fundamentals, one day at a time.**
 
-A "learning in public" site: a DSA problem every day and a short daily log,
-all updated over a 120-day learning journey.
+A "learning in public" site: a DSA problem every day, a short daily log,
+and an AI glossary for learning the language of AI, all built over a 120-day learning journey.
 
 [![Astro](https://img.shields.io/badge/Astro-7-BC52EE?logo=astro&logoColor=white)](https://astro.build)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -13,7 +13,7 @@ all updated over a 120-day learning journey.
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Content: CC BY 4.0](https://img.shields.io/badge/content-CC_BY_4.0-00ed64)](https://creativecommons.org/licenses/by/4.0/)
 
-[**dailydevlog.com**](https://dailydevlog.com) · [DSA](https://dailydevlog.com/dsa) · [Daily Log](https://dailydevlog.com/daily-log)
+[**dailydevlog.com**](https://dailydevlog.com) · [DSA](https://dailydevlog.com/dsa) · [Daily Log](https://dailydevlog.com/daily-log) · [AI Glossary](https://dailydevlog.com/ai-glossary)
 
 <br />
 
@@ -30,6 +30,7 @@ all updated over a 120-day learning journey.
 | :-- | :-- |
 | 🧩 **DSA** | Problem write-ups in a fixed 8-step format: restate, inputs/edge cases, approach, code, complexity and more. Tagged by difficulty and pattern. |
 | 📓 **Daily Log** | A short daily entry that ties the day's work together. |
+| 🌳 **AI Glossary** | 117 AI terms in 11 chapters, from perceptrons to agents. Browse them all at a glance in the **Tree** view, or learn them in order in the **Chapters** view with a short story, examples, related terms and a quick quiz per chapter. |
 | 🔎 **Search** | Client-side filter across every problem and log entry, by section and tag. |
 
 ## Screenshots
@@ -82,6 +83,7 @@ all updated over a 120-day learning journey.
 
 - **Content collections + MDX.** Every problem and log entry is an `.mdx` file with a typed schema.
 - **Read-along.** On problem pages, the Web Speech API follows your voice and highlights each word as you read it aloud.
+- **AI Glossary.** Tree and Chapters views, search across terms and definitions, a "must-know" filter, per-term "learned" progress saved in the browser, and shareable links to any term (`/ai-glossary#rag`).
 - **Consistency streak.** The home page tracks progress through the 120-day journey.
 - **Light and dark themes.** Follows the system setting, with a manual toggle.
 - **RSS and sitemap**, plus syntax highlighting with Shiki (`github-dark`).
@@ -102,9 +104,12 @@ src/
 ├── pages/
 │   ├── index.astro              # home: hero, streak, latest activity
 │   ├── dsa/  daily-log/         # list + [slug] pages
+│   ├── ai-glossary.astro        # AI glossary: tree + chapters views
 │   ├── search.astro
 │   └── rss.xml.js
-├── components/  layouts/  lib/  styles/
+├── lib/
+│   └── ai-glossary.ts           # glossary chapters, terms and quizzes
+├── components/  layouts/  styles/
 ```
 
 ## Getting started
@@ -141,6 +146,14 @@ The schemas in `src/content.config.ts` list the required frontmatter:
 
 - **DSA:** `title`, `difficulty` (Easy/Medium/Hard), `pattern[]`, `date`, `timeComplexity`, `spaceComplexity`, `summary`, optional `problemUrl`
 - **Daily log:** `day`, `date`, `summary`, optional `tags[]` and `links[]`
+
+### AI Glossary
+
+Glossary content lives in `src/lib/ai-glossary.ts`, not in content collections. Each chapter has a
+`name`, a one-line `tagline` for the tree, a `story` (write `[text](#term-id)` to link a term), its
+`terms` and a `quiz`. Each term has an `id` (used for its URL), `term`, `definition`, `example`,
+`related` term ids and an optional `mustKnow` flag. Every id in `related` and in the story must match
+an existing term.
 
 ## License
 

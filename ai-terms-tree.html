@@ -1,0 +1,302 @@
+<title>AI Glossary Tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F2F5F4;--surface:#FFFFFF;--surface-2:#E8EEEC;
+  --ink:#15201E;--muted:#56635F;--faint:#8A9793;
+  --line:#C9D3D0;--line-strong:#9FAEA9;
+  --accent:#0B7A63;--accent-soft:#D9F0E9;--accent-ink:#064D3F;
+  --mark:#FFE9A8;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0E1413;--surface:#162020;--surface-2:#1E2A29;
+  --ink:#E3ECE9;--muted:#9DAEA9;--faint:#6D7D79;
+  --line:#2C3A38;--line-strong:#47605B;
+  --accent:#4ACFAE;--accent-soft:#12382F;--accent-ink:#A8F0DC;
+  --mark:#5A4A12;
+}}
+:root[data-theme="dark"]{
+  --ground:#0E1413;--surface:#162020;--surface-2:#1E2A29;
+  --ink:#E3ECE9;--muted:#9DAEA9;--faint:#6D7D79;
+  --line:#2C3A38;--line-strong:#47605B;
+  --accent:#4ACFAE;--accent-soft:#12382F;--accent-ink:#A8F0DC;
+  --mark:#5A4A12;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.55;padding-inline:16px;padding-block:0 64px}
+.wrap{max-width:960px;margin:0 auto}
+header{padding-block:48px 28px;border-bottom:1px solid var(--line);display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--cond);font-weight:600;font-size:clamp(2.2rem,6vw,3.6rem);line-height:1.02;letter-spacing:-.01em;margin:0;text-wrap:balance}
+.lede{margin:0;color:var(--muted);max-width:60ch}
+.stats{display:flex;flex-wrap:wrap;gap:8px 24px;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.stats b{color:var(--ink);font-weight:500}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid var(--line)}
+.search{flex:1 1 240px;position:relative}
+.search input{width:100%;height:42px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:6px;padding:0 14px 0 38px;font:inherit;font-size:15px}
+.search input::placeholder{color:var(--faint)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--faint);fill:none;stroke-width:2}
+.btn{height:42px;padding:0 14px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:6px;font:inherit;font-size:14px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--ground);font-weight:500}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.result-note{font-family:var(--mono);font-size:12px;color:var(--muted);width:100%;min-height:1em}
+
+.tree{margin-top:28px}
+.root{display:inline-flex;align-items:center;gap:10px;padding:10px 16px;background:var(--ink);color:var(--ground);border-radius:6px;font-family:var(--cond);font-weight:600;font-size:18px}
+.root .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.branches{list-style:none;margin:0;padding:8px 0 0 0;margin-left:22px;border-left:1.5px solid var(--line-strong)}
+.branch{position:relative;padding-left:28px;margin-top:10px}
+.branch::before{content:"";position:absolute;left:0;top:24px;width:22px;border-top:1.5px solid var(--line-strong)}
+.branch:last-child{margin-bottom:0}
+.branches > .branch:last-child::after{content:"";position:absolute;left:-2px;top:25px;bottom:0;width:4px;background:var(--ground)}
+.head{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:8px 14px;border:1px solid var(--line);background:var(--surface);border-radius:6px;cursor:pointer;text-align:left;color:var(--ink);font:inherit}
+.head:hover{border-color:var(--line-strong)}
+.chev{width:14px;height:14px;flex:none;stroke:var(--muted);fill:none;stroke-width:2.2;transition:transform .2s}
+.branch.open .chev{transform:rotate(90deg)}
+.head .name{font-family:var(--cond);font-weight:600;font-size:18px}
+.head .desc{color:var(--muted);font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.head .count{font-family:var(--mono);font-size:12px;color:var(--accent-ink);background:var(--accent-soft);padding:2px 8px;border-radius:20px;flex:none}
+.leaves{display:none;margin:0 0 6px 20px;padding:14px 0 6px 22px;border-left:1.5px dashed var(--line-strong)}
+.branch.open .leaves{display:block}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:4px;padding:6px 11px;font:inherit;font-size:14px;cursor:pointer;line-height:1.3}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--ground)}
+.chip mark{background:var(--mark);color:inherit;border-radius:2px;padding:0 1px}
+.chip[hidden]{display:none}
+.def{margin-top:12px;background:var(--surface);border:1px solid var(--accent);border-radius:6px;padding:16px 18px;max-width:65ch}
+.def .t{font-family:var(--cond);font-weight:600;font-size:20px;margin:0 0 4px}
+.def .path{font-family:var(--mono);font-size:12px;color:var(--faint);margin-bottom:8px}
+.def p{margin:0;color:var(--ink)}
+.def .ex{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+.def .ex b{font-weight:500;color:var(--accent-ink)}
+.empty{margin-top:24px;color:var(--muted)}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--faint)}
+@media (max-width:560px){
+  .head .desc{display:none}
+  .branches{margin-left:10px}
+  .branch{padding-left:18px}
+  .branch::before{width:14px}
+  .leaves{margin-left:8px;padding-left:14px}
+}
+@media (prefers-reduced-motion:reduce){.chev{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Field guide · from perceptrons to agents</div>
+    <h1>AI Glossary Tree</h1>
+    <p class="lede">The words people use when they talk about artificial intelligence, grouped into ten branches. Open a branch, then pick a term to read what it means and see an everyday example.</p>
+    <div class="stats"><span><b id="s-terms">0</b> terms</span><span><b id="s-branches">0</b> branches</span><span>Plain-language definitions</span></div>
+  </header>
+
+  <div class="controls">
+    <label class="search" for="q">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" placeholder="Search terms, like token, RAG or overfitting" autocomplete="off">
+    </label>
+    <button class="btn" id="expand" type="button">Expand all</button>
+    <button class="btn" id="collapse" type="button">Collapse all</button>
+    <button class="btn primary" id="random" type="button">Random term</button>
+    <div class="result-note" id="note" aria-live="polite"></div>
+  </div>
+
+  <section class="tree" aria-label="AI terms tree">
+    <div class="root"><span class="dot" aria-hidden="true"></span>Artificial intelligence</div>
+    <ul class="branches" id="tree"></ul>
+    <p class="empty" id="empty" hidden>No term matches that search. Try a shorter word, like "learn" or "model".</p>
+  </section>
+
+  <footer>Definitions are simplified for beginners. Terms and tools in AI change quickly, so treat this as a starting map rather than a complete dictionary.</footer>
+</div>
+
+<script>
+const DATA=[
+{n:"Core concepts",d:"The big ideas everything else builds on",t:[
+["Artificial intelligence","Machines doing tasks that normally need human intelligence, like understanding language or recognizing faces.","Your phone unlocking when it sees your face."],
+["Machine learning","AI that learns patterns from data instead of following hand-written rules.","An email filter that learns what spam looks like from millions of examples."],
+["Deep learning","Machine learning with neural networks that have many layers.","Google Translate turning Hindi into English."],
+["Neural network","A model made of connected nodes, loosely inspired by neurons in the brain.","Each layer spots something: edges, then shapes, then a whole cat."],
+["Algorithm","A step-by-step procedure a computer follows.","A recipe the computer follows exactly."],
+["Model","The trained system that makes predictions or generates output.","Claude and GPT are models; the app you chat in is not."],
+["Narrow AI","AI built to do one specific task well.","A chess engine that can't write an email."],
+["AGI","Artificial general intelligence: hypothetical AI that matches humans across most tasks.","One system that could do a doctor's, lawyer's and coder's job."],
+["ASI","Artificial superintelligence: hypothetical AI far smarter than any human.","Still speculative; discussed mostly in safety research."],
+["Symbolic AI","The older approach based on explicit rules and logic written by people.","IF fever AND cough THEN suggest flu test."]]},
+{n:"Types of learning",d:"How a model gets its knowledge",t:[
+["Supervised learning","Learning from labeled examples, each with the correct answer attached.","Thousands of photos tagged 'cat' or 'dog'."],
+["Unsupervised learning","Finding patterns in data that has no labels.","Grouping shoppers into types by what they buy."],
+["Self-supervised learning","The model creates its own labels from the data itself.","Hiding the next word in a sentence and learning to guess it."],
+["Reinforcement learning","Learning by trial and error using rewards and penalties.","A game AI getting points for winning and losing points for dying."],
+["Semi-supervised learning","A small amount of labeled data plus a large amount of unlabeled data.","100 labeled X-rays and 10,000 unlabeled ones."],
+["Transfer learning","Reusing knowledge learned on one task for a different task.","A model trained on general photos adapted to spot plant diseases."],
+["Zero-shot","Doing a task without being shown any examples.","'Classify this review as positive or negative' with no samples."],
+["Few-shot","Doing a task after seeing only a handful of examples in the prompt.","Showing three formatted addresses, then asking it to format a fourth."]]},
+{n:"Training and data",d:"What happens while a model learns",t:[
+["Dataset","The collection of data used to train or test a model.","ImageNet: over a million labeled images."],
+["Train, validation, test","Data split three ways: to learn from, to tune settings, and to give a final score.","Like homework, practice tests and the final exam."],
+["Label","The correct answer attached to a training example.","The word 'spam' attached to a junk email."],
+["Feature","An input variable the model uses to make a prediction.","Square footage and location when predicting a house price."],
+["Parameters","The internal numbers (weights) a model learns during training.","A '70B' model has 70 billion of them."],
+["Hyperparameters","Settings chosen by people before training starts.","Learning rate, batch size, number of layers."],
+["Epoch","One complete pass through all the training data.","Reading the whole textbook once."],
+["Batch","A small group of examples processed together in one step.","Grading 32 papers before updating your notes."],
+["Loss function","A score for how wrong the model's predictions are.","Lower loss means better guesses."],
+["Gradient descent","The method of nudging weights in the direction that reduces loss.","Walking downhill in fog, one careful step at a time."],
+["Backpropagation","The algorithm that works out how much each weight contributed to the error.","Tracing a wrong answer back to which steps caused it."],
+["Overfitting","Memorizing the training data so well that the model fails on new data.","A student who memorized past papers but can't solve new questions."],
+["Underfitting","A model too simple to capture the real patterns.","Predicting every house costs the average price."],
+["Regularization","Techniques that stop a model from overfitting.","Dropout randomly switches off neurons during training."],
+["Synthetic data","Training data generated artificially rather than collected.","Computer-rendered street scenes for self-driving cars."],
+["Data augmentation","Creating variations of existing data to get more examples.","Flipping, rotating and cropping the same photo."]]},
+{n:"Architectures",d:"The shapes models are built in",t:[
+["CNN","Convolutional neural network, designed mainly for images.","Spotting tumors in medical scans."],
+["RNN","Recurrent neural network, an older design for sequences like text.","Early phone keyboard predictions."],
+["LSTM","An improved RNN that can remember longer sequences.","Speech recognition before Transformers took over."],
+["Transformer","The 2017 architecture built on attention that powers modern LLMs.","The 'T' in GPT."],
+["Attention","A mechanism that lets the model focus on the most relevant parts of its input.","In 'the bank by the river', attention links 'bank' to 'river'."],
+["Encoder and decoder","The part that understands input and the part that produces output.","Translation: encode English, decode French."],
+["GAN","Generative adversarial network: one network creates, another judges.","Early photorealistic fake faces."],
+["Diffusion model","Generates images by starting from noise and removing it step by step.","Stable Diffusion and Midjourney."],
+["Autoencoder","A network that compresses data and then rebuilds it.","Removing noise from old photos."],
+["Mixture of experts","A model with many specialist sub-networks, only a few used per input.","A hospital routing each patient to the right specialist."]]},
+{n:"Large language models",d:"The engines behind chat assistants",t:[
+["LLM","A large language model: a huge Transformer trained on text.","Claude, GPT, Gemini, Llama."],
+["Foundation model","A large general-purpose model that can be adapted to many tasks.","One base model powering chat, code and search tools."],
+["Token","A chunk of text, often part of a word, that the model reads and writes.","'Unbelievable' might be 'un', 'believ', 'able'."],
+["Tokenization","Splitting text into tokens.","Roughly 100 English words is about 130 tokens."],
+["Context window","How many tokens the model can consider at once.","A big window can hold a whole book."],
+["Embedding","Text turned into a list of numbers that captures its meaning.","'King' and 'queen' end up close together."],
+["Pre-training","The first, massive training phase on huge amounts of text.","Reading much of the public internet."],
+["Fine-tuning","Extra training on specific data to specialize a model.","Tuning a model on legal documents."],
+["Instruction tuning","Fine-tuning a model to follow instructions helpfully.","Turning a text predictor into an assistant."],
+["RLHF","Reinforcement learning from human feedback: people rate answers and the model learns from the ratings.","Raters pick the better of two replies."],
+["Constitutional AI","Anthropic's training method guided by a written set of principles.","The model critiques its own answers against the principles."],
+["Inference","Using a trained model to produce output.","Every time you send a chat message."],
+["Temperature","A setting for randomness: low is focused, high is creative.","Use low for facts, high for poems."],
+["Top-p and top-k","Settings that limit which next words the model may choose.","Only consider the 40 most likely words."],
+["Hallucination","When AI confidently states something false.","Citing a research paper that doesn't exist."],
+["Multimodal","Able to handle several kinds of data, like text, images and audio.","Uploading a photo of a fridge and asking for a recipe."],
+["Reasoning model","A model that thinks step by step before answering.","Working through a math problem before giving the result."],
+["Chain of thought","Step-by-step reasoning written out.","'First... then... therefore...'"],
+["Distillation","Training a small model to imitate a larger one.","A pocket-size model that behaves like its big teacher."],
+["Quantization","Shrinking a model by storing its numbers with less precision.","Running a big model on a laptop."],
+["Open-weight model","A model whose weights anyone can download and run.","Llama, Mistral, DeepSeek."],
+["Small language model","A compact model that can run on phones or laptops.","On-device text suggestions."]]},
+{n:"Prompting and apps",d:"How people use and build with AI",t:[
+["Prompt","The input or instruction you give an AI.","'Summarize this email in three bullets.'"],
+["Prompt engineering","Crafting prompts to get better results.","Adding examples, a role and the output format you want."],
+["System prompt","Background instructions that set how an AI behaves.","'You are a friendly support agent for a bank.'"],
+["Jailbreak","Tricking an AI into breaking its own rules.","Role-play framings designed to bypass safety limits."],
+["Prompt injection","Hidden malicious instructions placed in content the AI reads.","A webpage secretly saying 'ignore your instructions'."],
+["RAG","Retrieval-augmented generation: the AI looks up documents, then answers using them.","A support bot that searches the help center before replying."],
+["Vector database","A database that stores embeddings for fast similarity search.","Pinecone, Weaviate, pgvector."],
+["Semantic search","Search by meaning rather than exact keywords.","'Cheap flights' also finds 'budget airfare'."],
+["AI agent","AI that plans and takes actions with tools to finish a task.","Booking a meeting by checking calendars and sending invites."],
+["Agentic AI","Systems that work autonomously across many steps.","Researching, drafting and revising a report on its own."],
+["Tool use","The AI calling external tools or APIs.","Checking live weather before answering."],
+["MCP","Model Context Protocol: an open standard for connecting AI to apps and data.","Like USB-C for plugging AI into tools."],
+["Copilot","An AI assistant built into the software you already use.","Code suggestions inside your editor."],
+["Chatbot","A program you talk to in conversation.","A website's help chat bubble."],
+["API","The interface developers use to reach a model from code.","An app sending text to a model and getting a reply."],
+["Vibe coding","Building software mostly by describing what you want to an AI.","'Make me a to-do app with dark mode.'"]]},
+{n:"Fields of AI",d:"Areas where AI is applied",t:[
+["NLP","Natural language processing: understanding and generating human language.","Translation, summarization, sentiment analysis."],
+["Computer vision","Understanding images and video.","Detecting pedestrians for a self-driving car."],
+["Speech recognition","Turning spoken audio into text.","Voice typing and live captions."],
+["Text-to-speech","Turning text into spoken audio.","Audiobook narration and navigation voices."],
+["OCR","Optical character recognition: reading text from images.","Scanning a receipt into an expense app."],
+["Generative AI","AI that creates new text, images, audio, video or code.","ChatGPT, Claude, Midjourney, Suno."],
+["Robotics","AI controlling physical machines.","Warehouse robots picking items."],
+["Recommender systems","AI that suggests content or products.","YouTube's 'up next' and Netflix rows."]]},
+{n:"Evaluation",d:"How we measure whether a model is good",t:[
+["Benchmark","A standard test for comparing models.","MMLU for knowledge, SWE-bench for coding."],
+["Accuracy","The share of predictions that are correct.","95 right out of 100 is 95% accuracy."],
+["Precision and recall","Precision: how many flagged items are right. Recall: how many right items were flagged.","A spam filter that catches all spam but also blocks real mail has high recall, low precision."],
+["F1 score","A single number that balances precision and recall.","Used when classes are imbalanced."],
+["Confusion matrix","A table of correct versus incorrect predictions by category.","Shows which digits a model mixes up."],
+["Perplexity","How surprised a language model is by text; lower is better.","A fluent model finds normal sentences unsurprising."],
+["Evals","Tests that measure a model's abilities or safety.","Checking whether a model refuses dangerous requests."]]},
+{n:"Hardware",d:"The machines that make it run",t:[
+["GPU","Graphics processing unit, the chip that does most AI training.","NVIDIA H100 and B200."],
+["TPU","Tensor processing unit, Google's custom AI chip.","Used to train Gemini."],
+["Compute","The processing power used to train and run AI.","Measured in chips, hours and energy."],
+["FLOPs","Floating-point operations, a measure of computation.","Frontier models take around 10^25 FLOPs to train."],
+["Scaling laws","The finding that more data, compute and parameters give predictably better models.","The reason labs build ever-larger clusters."],
+["Edge AI","AI running on the device itself instead of in the cloud.","Photo sorting on your phone without uploading."],
+["Latency","How long a response takes to arrive.","Time until the first word appears."],
+["Throughput","How much work gets done per second.","Tokens generated per second."]]},
+{n:"Safety and ethics",d:"Keeping AI trustworthy and fair",t:[
+["Alignment","Making AI pursue the goals humans actually intend.","Helpful without cutting dangerous corners."],
+["AI safety","The field focused on preventing harmful AI behavior.","Testing, monitoring and safeguards."],
+["Bias","Unfair patterns a model learns from its data.","A hiring model favoring one group."],
+["Explainability","Understanding why a model made a particular decision.","Showing which factors denied a loan."],
+["Interpretability","Studying what happens inside a model's internals.","Finding the neurons that respond to a concept."],
+["Black box","A system whose inner workings are hard to see.","Knowing the input and output but not the why."],
+["Red teaming","Deliberately attacking an AI to find weaknesses.","Experts trying to make a model misbehave before launch."],
+["Guardrails","Rules and filters that keep AI behavior safe.","Blocking instructions for making weapons."],
+["Deepfake","AI-faked video, audio or images of real people.","A cloned voice used in a scam call."],
+["Watermarking","Invisible marks that identify AI-generated content.","Google's SynthID."],
+["Responsible AI","Building and deploying AI ethically and transparently.","Model cards, audits and human oversight."],
+["EU AI Act","Europe's law that regulates AI by risk level.","Bans some uses and adds rules for high-risk ones."]]}
+];
+
+const tree=document.getElementById('tree'),q=document.getElementById('q'),note=document.getElementById('note'),empty=document.getElementById('empty');
+let total=0;const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+DATA.forEach((b,i)=>{
+  total+=b.t.length;
+  const li=document.createElement('li');li.className='branch'+(i<2?' open':'');
+  const id='leaves-'+i;
+  li.innerHTML=`<button class="head" type="button" aria-expanded="${i<2}" aria-controls="${id}"><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="name">${b.n}</span><span class="desc">${b.d}</span><span class="count">${b.t.length}</span></button><div class="leaves" id="${id}"><div class="chips"></div></div>`;
+  const chips=li.querySelector('.chips');
+  b.t.forEach((t,j)=>{
+    const c=document.createElement('button');c.type='button';c.className='chip';c.setAttribute('aria-pressed','false');
+    c.textContent=t[0];c.dataset.name=t[0];c.dataset.key=(t[0]+' '+t[1]).toLowerCase();c.dataset.b=i;c.dataset.t=j;
+    c.addEventListener('click',()=>select(c));chips.appendChild(c);
+  });
+  li.querySelector('.head').addEventListener('click',()=>setOpen(li,!li.classList.contains('open')));
+  tree.appendChild(li);
+});
+document.getElementById('s-terms').textContent=total;
+document.getElementById('s-branches').textContent=DATA.length;
+
+function setOpen(li,o){li.classList.toggle('open',o);li.querySelector('.head').setAttribute('aria-expanded',o)}
+function clearDef(){document.querySelectorAll('.def').forEach(d=>d.remove());document.querySelectorAll('.chip[aria-pressed="true"]').forEach(c=>c.setAttribute('aria-pressed','false'))}
+function select(c,scroll){
+  const was=c.getAttribute('aria-pressed')==='true';clearDef();if(was)return;
+  const b=DATA[c.dataset.b],t=b.t[c.dataset.t];c.setAttribute('aria-pressed','true');
+  const d=document.createElement('div');d.className='def';d.setAttribute('role','region');d.setAttribute('aria-label',t[0]);
+  d.innerHTML=`<div class="path">AI › ${esc(b.n)}</div><div class="t">${esc(t[0])}</div><p>${esc(t[1])}</p><div class="ex"><b>Example</b> · ${esc(t[2])}</div>`;
+  c.closest('.leaves').appendChild(d);
+  if(scroll)d.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});
+}
+function search(){
+  const v=q.value.trim().toLowerCase();let shown=0;clearDef();
+  document.querySelectorAll('.branch').forEach(li=>{
+    let m=0;li.querySelectorAll('.chip').forEach(c=>{
+      const hit=!v||c.dataset.key.includes(v);c.hidden=!hit;
+      const n=c.dataset.name,k=n.toLowerCase().indexOf(v);
+      c.innerHTML=v&&k>-1?esc(n.slice(0,k))+'<mark>'+esc(n.slice(k,k+v.length))+'</mark>'+esc(n.slice(k+v.length)):esc(n);
+      if(hit)m++;});
+    li.hidden=!!v&&!m;if(v)setOpen(li,m>0);
+    li.querySelector('.count').textContent=v?m+'/'+li.querySelectorAll('.chip').length:li.querySelectorAll('.chip').length;
+    shown+=m;});
+  empty.hidden=!v||shown>0;
+  note.textContent=v?`${shown} of ${total} terms match "${q.value.trim()}"`:'';
+}
+q.addEventListener('input',search);
+document.getElementById('expand').addEventListener('click',()=>document.querySelectorAll('.branch').forEach(l=>setOpen(l,true)));
+document.getElementById('collapse').addEventListener('click',()=>{clearDef();document.querySelectorAll('.branch').forEach(l=>setOpen(l,false))});
+document.getElementById('random').addEventListener('click',()=>{
+  if(q.value){q.value='';search();}
+  const all=[...document.querySelectorAll('.chip')];const c=all[Math.floor(Math.random()*all.length)];
+  const li=c.closest('.branch');setOpen(li,true);clearDef();select(c,true);
+});
+</script>

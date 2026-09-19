@@ -1,0 +1,525 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { chapters, termById } from '../lib/ai-glossary';
+
+const totalTerms = chapters.reduce((n, c) => n + c.terms.length, 0);
+const mustKnowCount = chapters.reduce((n, c) => n + c.terms.filter((t) => t.mustKnow).length, 0);
+
+// Split "[text](#id)" markers in a chapter story into text and link parts.
+function storyParts(story: string) {
+  return story.split(/(\[[^\]]+\]\(#[\w-]+\))/).map((part) => {
+    const m = part.match(/^\[([^\]]+)\]\(#([\w-]+)\)$/);
+    return m ? { text: m[1], id: m[2] } : { text: part };
+  });
+}
+
+const views = [
+  { value: 'tree', label: 'Tree' },
+  { value: 'chapters', label: 'Chapters' },
+];
+---
+
+<BaseLayout
+  title="AI Glossary"
+  description="Learn the language of AI in chapters: plain-language definitions, examples, how the terms connect, and a quick check after each chapter."
+>
+  <header>
+    <p class="font-mono text-xs tracking-widest text-brand-green-dark uppercase dark:text-brand-green">
+      Field guide · learn it in order
+    </p>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink">AI Glossary</h1>
+    <p class="mt-2 max-w-2xl text-slate">
+      Use <strong class="font-semibold text-ink">Tree</strong> to see every term at a glance, and{' '}
+      <strong class="font-semibold text-ink">Chapters</strong> to learn them in order with a quick check at the end. Mark a
+      term as learned once you could explain it to a friend.
+    </p>
+
+    <div class="mt-6 rounded-lg border border-hairline bg-surface p-4">
+      <label class="relative block">
+        <span class="sr-only">Search terms</span>
+        <svg viewBox="0 0 24 24" class="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 fill-none stroke-steel stroke-2" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path>
+        </svg>
+        <input
+          type="search"
+          data-search
+          autocomplete="off"
+          placeholder="Search terms, like token, model or hallucination"
+          class="h-11 w-full rounded-md border border-hairline-strong bg-canvas pr-4 pl-10 text-sm text-ink placeholder:text-steel focus:border-brand-green-dark focus:ring-1 focus:ring-brand-green-dark focus:outline-none"
+        />
+      </label>
+      <p data-search-note aria-live="polite" class="mt-2 font-mono text-xs text-steel empty:hidden"></p>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="inline-flex rounded-full border border-hairline-strong p-1" role="group" aria-label="View">
+          {
+            views.map((v) => (
+              <button
+                type="button"
+                data-view-btn={v.value}
+                aria-pressed="false"
+                class="rounded-full px-4 py-1.5 text-sm font-medium text-steel transition-colors hover:text-ink aria-pressed:bg-ink aria-pressed:text-canvas"
+              >
+                {v.label}
+              </button>
+            ))
+          }
+        </div>
+        <label class="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate">
+          <input type="checkbox" data-must-toggle class="size-4 accent-brand-green-dark" />
+          Only the {mustKnowCount} must-know terms
+        </label>
+      </div>
+      <p class="mt-4 text-sm text-slate">
+        <span class="font-semibold text-ink" data-learned-count>0</span> of {totalTerms} terms learned
+      </p>
+      <div class="mt-2 h-2 overflow-hidden rounded-full bg-hairline">
+        <div data-progress-bar class="h-full w-0 rounded-full bg-brand-green-mid transition-[width] duration-300"></div>
+      </div>
+    </div>
+  </header>
+
+  <p data-search-empty hidden class="mt-10 rounded-lg border border-dashed border-hairline p-8 text-center text-sm text-stone">
+    No term matches that search. Try a shorter word, like "learn" or "model".
+  </p>
+
+  <!-- Tree view: every branch and term at a glance -->
+  <section data-view-panel="tree" class="mt-10" aria-label="AI terms tree">
+    <div data-tree-root class="inline-flex items-center gap-2.5 rounded-md bg-ink px-4 py-2.5 text-lg font-semibold text-canvas">
+      <span class="size-2 rounded-full bg-brand-green" aria-hidden="true"></span>
+      Artificial intelligence
+    </div>
+    <ul class="ml-5 border-l-2 border-hairline-strong">
+      {
+        chapters.map((chapter, ci) => (
+          <li
+            data-tree-branch
+            class="relative pt-5 pl-7 before:absolute before:top-[2.6rem] before:left-0 before:w-6 before:border-t-2 before:border-hairline-strong last:after:absolute last:after:top-[2.7rem] last:after:bottom-0 last:after:-left-0.5 last:after:w-0.5 last:after:bg-canvas max-sm:pl-4 max-sm:before:w-3"
+          >
+            <div class="rounded-lg border border-hairline bg-surface p-4">
+              <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h2 class="font-semibold text-ink">
+                  <span class="mr-1.5 font-mono text-xs text-stone">{ci + 1}</span>
+                  {chapter.name}
+                </h2>
+                <p class="text-sm text-steel">{chapter.tagline}</p>
+                <span class="ml-auto rounded-full bg-brand-green-soft px-2 py-0.5 font-mono text-xs text-brand-green-dark">
+                  <span data-branch-count>0</span>/{chapter.terms.length}
+                </span>
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                {chapter.terms.map((t) => (
+                  <button
+                    type="button"
+                    data-tree-chip={t.id}
+                    data-must={t.mustKnow ? 'true' : 'false'}
+                    data-search-key={`${t.term} ${t.definition}`.toLowerCase()}
+                    data-name={t.term}
+                    data-definition={t.definition}
+                    data-example={t.example}
+                    aria-pressed="false"
+                    class="rounded-md border border-hairline-strong bg-canvas px-3 py-1.5 text-sm text-charcoal transition-colors hover:border-brand-green-dark data-[learned=true]:border-brand-green-mid aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-canvas"
+                  >
+                    <span data-chip-check hidden class="mr-1 text-brand-green-mid" aria-label="learned">
+                      ✓
+                    </span>
+                    {t.term}
+                  </button>
+                ))}
+              </div>
+              <div data-tree-panel hidden role="region" aria-live="polite" class="mt-4 border-t border-hairline pt-4">
+                <p data-panel-name class="text-lg font-semibold text-ink" />
+                <p data-panel-definition class="mt-1 max-w-2xl text-ink" />
+                <p class="mt-2 max-w-2xl text-sm text-slate">
+                  <span class="font-semibold text-brand-green-dark dark:text-brand-green">Example</span> ·{' '}
+                  <span data-panel-example />
+                </p>
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    data-panel-learn
+                    aria-pressed="false"
+                    class="rounded-full border border-hairline-strong px-3 py-1.5 text-sm font-medium text-slate transition-colors hover:border-brand-green-dark aria-pressed:border-brand-green-dark aria-pressed:bg-brand-green-dark aria-pressed:text-on-dark"
+                  >
+                    Mark as learned
+                  </button>
+                  <button
+                    type="button"
+                    data-panel-open
+                    class="rounded-full px-3 py-1.5 text-sm font-medium text-steel transition-colors hover:text-ink"
+                  >
+                    Read in chapter →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <!-- Chapters view: guided learning path -->
+  <div data-view-panel="chapters" hidden class="mt-10 flex flex-col gap-14">
+    {
+      chapters.map((chapter, ci) => (
+        <section id={chapter.id} data-chapter aria-labelledby={`${chapter.id}-title`}>
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id={`${chapter.id}-title`} class="text-2xl font-semibold tracking-tight text-ink">
+              <span class="mr-2 font-mono text-sm text-stone">Chapter {ci + 1}</span>
+              {chapter.name}
+            </h2>
+            <span class="font-mono text-xs text-steel">
+              <span data-chapter-count>0</span>/{chapter.terms.length} learned
+            </span>
+          </div>
+
+          <p data-story class="mt-4 max-w-3xl rounded-lg border-l-4 border-brand-green-mid bg-surface-feature p-4 leading-relaxed text-charcoal">
+            {storyParts(chapter.story).map((p) =>
+              p.id ? (
+                <a
+                  href={`#${p.id}`}
+                  class="font-medium text-brand-green-dark underline decoration-dotted underline-offset-4 dark:text-brand-green"
+                >
+                  {p.text}
+                </a>
+              ) : (
+                p.text
+              ),
+            )}
+          </p>
+
+          <div class="mt-5 flex flex-col gap-2">
+            {chapter.terms.map((t) => (
+              <details
+                id={t.id}
+                data-term={t.id}
+                data-must={t.mustKnow ? 'true' : 'false'}
+                data-search-key={`${t.term} ${t.definition}`.toLowerCase()}
+                class="group scroll-mt-24 rounded-lg border border-hairline bg-canvas open:border-hairline-strong open:bg-surface"
+              >
+                <summary class="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <svg viewBox="0 0 24 24" class="size-3.5 flex-none fill-none stroke-steel stroke-[2.5] transition-transform group-open:rotate-90" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                  <span class="font-semibold text-ink">{t.term}</span>
+                  {t.mustKnow && (
+                    <span class="rounded-full bg-brand-green-soft px-2 py-0.5 text-[11px] font-semibold text-brand-green-dark">
+                      must-know
+                    </span>
+                  )}
+                  <span data-learned-badge hidden class="ml-auto font-mono text-xs text-brand-green-dark dark:text-brand-green">
+                    ✓ learned
+                  </span>
+                </summary>
+                <div class="border-t border-hairline px-4 pt-3 pb-4 pl-10">
+                  <p class="text-ink">{t.definition}</p>
+                  <p class="mt-2 text-sm text-slate">
+                    <span class="font-semibold text-brand-green-dark dark:text-brand-green">Example</span> · {t.example}
+                  </p>
+                  {t.related.length > 0 && (
+                    <p class="mt-3 flex flex-wrap items-center gap-1.5 text-sm">
+                      <span class="text-steel">Connects to</span>
+                      {t.related.map((rid) => (
+                        <a
+                          href={`#${rid}`}
+                          class="rounded-full border border-hairline-strong px-2.5 py-0.5 text-slate transition-colors hover:border-brand-green-dark hover:text-ink"
+                        >
+                          {termById.get(rid)?.term ?? rid}
+                        </a>
+                      ))}
+                    </p>
+                  )}
+                  <div class="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-learn-btn
+                      aria-pressed="false"
+                      class="rounded-full border border-hairline-strong px-3 py-1.5 text-sm font-medium text-slate transition-colors hover:border-brand-green-dark aria-pressed:border-brand-green-dark aria-pressed:bg-brand-green-dark aria-pressed:text-on-dark"
+                    >
+                      Mark as learned
+                    </button>
+                    <button
+                      type="button"
+                      data-copy-link
+                      class="rounded-full px-3 py-1.5 text-sm font-medium text-steel transition-colors hover:text-ink"
+                    >
+                      Copy link
+                    </button>
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
+
+          <div data-quiz-block class="mt-6 rounded-lg border border-hairline p-5">
+            <h3 class="font-semibold text-ink">Quick check · Chapter {ci + 1}</h3>
+            <p class="mt-1 text-sm text-steel">Answer from memory before peeking. Recalling is what makes it stick.</p>
+            <ol class="mt-4 flex flex-col gap-5">
+              {chapter.quiz.map((q, qi) => (
+                <li data-quiz data-answer={q.answer}>
+                  <p class="font-medium text-ink">
+                    {qi + 1}. {q.question}
+                  </p>
+                  <div class="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap">
+                    {q.options.map((opt, oi) => (
+                      <button
+                        type="button"
+                        data-option={oi}
+                        class="rounded-md border border-hairline-strong px-3 py-2 text-left text-sm text-slate transition-colors hover:border-brand-green-dark disabled:cursor-default disabled:hover:border-hairline-strong"
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <p data-explanation hidden class="mt-2 text-sm text-slate">
+                    <span data-verdict class="font-semibold" />
+                    {q.explanation}
+                  </p>
+                </li>
+              ))}
+            </ol>
+            <p data-score class="mt-4 font-mono text-sm text-steel" />
+          </div>
+        </section>
+      ))
+    }
+  </div>
+</BaseLayout>
+
+<script>
+  const STORAGE_KEY = 'ai-glossary:learned';
+  const VIEW_KEY = 'ai-glossary:view';
+
+  function loadLearned(): Set<string> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]'));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function saveLearned(set: Set<string>) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+    } catch {
+      // Storage unavailable (private mode); progress just won't persist.
+    }
+  }
+
+  const learned = loadLearned();
+  const terms = document.querySelectorAll<HTMLDetailsElement>('[data-term]');
+  const chips = document.querySelectorAll<HTMLButtonElement>('[data-tree-chip]');
+
+  function toggleLearned(id: string) {
+    if (learned.has(id)) learned.delete(id);
+    else learned.add(id);
+    saveLearned(learned);
+    render();
+  }
+
+  function setLearnButton(btn: HTMLButtonElement, on: boolean) {
+    btn.setAttribute('aria-pressed', String(on));
+    btn.textContent = on ? '✓ Learned' : 'Mark as learned';
+  }
+
+  function render() {
+    terms.forEach((el) => {
+      const on = learned.has(el.dataset.term!);
+      el.querySelector<HTMLElement>('[data-learned-badge]')!.hidden = !on;
+      setLearnButton(el.querySelector<HTMLButtonElement>('[data-learn-btn]')!, on);
+    });
+    chips.forEach((chip) => {
+      const on = learned.has(chip.dataset.treeChip!);
+      chip.dataset.learned = String(on);
+      chip.querySelector<HTMLElement>('[data-chip-check]')!.hidden = !on;
+    });
+    document.querySelectorAll<HTMLElement>('[data-tree-panel]').forEach((panel) => {
+      if (panel.dataset.term) setLearnButton(panel.querySelector('[data-panel-learn]')!, learned.has(panel.dataset.term));
+    });
+
+    const countIn = (root: HTMLElement, selector: string, attr: string) =>
+      [...root.querySelectorAll<HTMLElement>(selector)].filter((t) => learned.has(t.dataset[attr]!)).length;
+    document.querySelectorAll<HTMLElement>('[data-chapter]').forEach((ch) => {
+      ch.querySelector('[data-chapter-count]')!.textContent = String(countIn(ch, '[data-term]', 'term'));
+    });
+    document.querySelectorAll<HTMLElement>('[data-tree-branch]').forEach((br) => {
+      br.querySelector('[data-branch-count]')!.textContent = String(countIn(br, '[data-tree-chip]', 'treeChip'));
+    });
+
+    const count = [...terms].filter((t) => learned.has(t.dataset.term!)).length;
+    document.querySelector('[data-learned-count]')!.textContent = String(count);
+    document.querySelector<HTMLElement>('[data-progress-bar]')!.style.width = `${(count / terms.length) * 100}%`;
+  }
+
+  // View switching (Tree / Chapters); the choice is remembered per browser.
+  const viewButtons = document.querySelectorAll<HTMLButtonElement>('[data-view-btn]');
+  const viewPanels = document.querySelectorAll<HTMLElement>('[data-view-panel]');
+
+  function setView(view: string) {
+    viewPanels.forEach((p) => (p.hidden = p.dataset.viewPanel !== view));
+    viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.viewBtn === view)));
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      // Ignore; the view just won't be remembered.
+    }
+  }
+
+  viewButtons.forEach((b) => b.addEventListener('click', () => setView(b.dataset.viewBtn!)));
+
+  // Tree view: clicking a term shows its definition inside that branch.
+  function closePanels() {
+    chips.forEach((c) => c.setAttribute('aria-pressed', 'false'));
+    document.querySelectorAll<HTMLElement>('[data-tree-panel]').forEach((p) => {
+      p.hidden = true;
+      delete p.dataset.term;
+    });
+  }
+
+  chips.forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const wasOpen = chip.getAttribute('aria-pressed') === 'true';
+      closePanels();
+      if (wasOpen) return;
+      chip.setAttribute('aria-pressed', 'true');
+      const panel = chip.closest('[data-tree-branch]')!.querySelector<HTMLElement>('[data-tree-panel]')!;
+      panel.dataset.term = chip.dataset.treeChip;
+      panel.querySelector('[data-panel-name]')!.textContent = chip.dataset.name!;
+      panel.querySelector('[data-panel-definition]')!.textContent = chip.dataset.definition!;
+      panel.querySelector('[data-panel-example]')!.textContent = chip.dataset.example!;
+      panel.hidden = false;
+      render();
+    });
+  });
+
+  document.querySelectorAll<HTMLElement>('[data-tree-panel]').forEach((panel) => {
+    panel.querySelector('[data-panel-learn]')!.addEventListener('click', () => toggleLearned(panel.dataset.term!));
+    panel.querySelector('[data-panel-open]')!.addEventListener('click', () => {
+      const id = panel.dataset.term!;
+      if (location.hash === `#${id}`) openFromHash();
+      else location.hash = id;
+    });
+  });
+
+  // Chapters view: learn buttons and shareable links.
+  terms.forEach((el) => {
+    el.querySelector('[data-learn-btn]')!.addEventListener('click', () => toggleLearned(el.dataset.term!));
+    const copyBtn = el.querySelector<HTMLButtonElement>('[data-copy-link]')!;
+    copyBtn.addEventListener('click', async () => {
+      const url = `${location.origin}${location.pathname}#${el.id}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        copyBtn.textContent = 'Link copied';
+      } catch {
+        history.replaceState(null, '', `#${el.id}`);
+        copyBtn.textContent = 'Link in address bar';
+      }
+      setTimeout(() => (copyBtn.textContent = 'Copy link'), 1800);
+    });
+  });
+
+  // Deep links and "connects to" links: switch to Chapters, open the term, bring it into view.
+  function openFromHash(): boolean {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id && document.getElementById(id);
+    if (!(target instanceof HTMLDetailsElement)) return false;
+    setView('chapters');
+    if (target.hidden) {
+      searchInput.value = '';
+      mustToggle.checked = false;
+      applyFilters();
+    }
+    target.open = true;
+    target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    return true;
+  }
+  window.addEventListener('hashchange', openFromHash);
+
+  // Search and the must-know filter apply to both views.
+  const searchInput = document.querySelector<HTMLInputElement>('[data-search]')!;
+  const mustToggle = document.querySelector<HTMLInputElement>('[data-must-toggle]')!;
+  const searchNote = document.querySelector<HTMLElement>('[data-search-note]')!;
+  const searchEmpty = document.querySelector<HTMLElement>('[data-search-empty]')!;
+  let wasSearching = false;
+
+  function applyFilters() {
+    const q = searchInput.value.trim().toLowerCase();
+    const only = mustToggle.checked;
+    const matches = (el: HTMLElement) =>
+      (!only || el.dataset.must === 'true') && (!q || el.dataset.searchKey!.includes(q));
+
+    let count = 0;
+    terms.forEach((t) => {
+      const show = matches(t);
+      t.hidden = !show;
+      if (show) count++;
+      // Open matching terms while searching; fold them back when the search is cleared.
+      if (q) t.open = show;
+      else if (wasSearching) t.open = false;
+    });
+    chips.forEach((c) => (c.hidden = !matches(c)));
+
+    document.querySelectorAll<HTMLElement>('[data-tree-branch]').forEach((br) => {
+      br.hidden = !br.querySelector('[data-tree-chip]:not([hidden])');
+    });
+    document.querySelectorAll<HTMLElement>('[data-chapter]').forEach((ch) => {
+      ch.hidden = !ch.querySelector('[data-term]:not([hidden])');
+      ch.querySelector<HTMLElement>('[data-story]')!.hidden = !!q;
+      ch.querySelector<HTMLElement>('[data-quiz-block]')!.hidden = !!q;
+    });
+    if (document.querySelector('[data-tree-chip][aria-pressed="true"][hidden]')) closePanels();
+
+    searchNote.textContent = q ? `${count} of ${terms.length} terms match "${searchInput.value.trim()}"` : '';
+    searchEmpty.hidden = count > 0;
+    document.querySelector<HTMLElement>('[data-tree-root]')!.hidden = count === 0;
+    wasSearching = !!q;
+  }
+
+  searchInput.addEventListener('input', applyFilters);
+  mustToggle.addEventListener('change', applyFilters);
+
+  document.querySelectorAll<HTMLElement>('[data-chapter]').forEach((ch) => {
+    const questions = ch.querySelectorAll<HTMLElement>('[data-quiz]');
+    const scoreEl = ch.querySelector<HTMLElement>('[data-score]')!;
+    let answered = 0;
+    let correct = 0;
+    questions.forEach((q) => {
+      const answer = Number(q.dataset.answer);
+      const options = q.querySelectorAll<HTMLButtonElement>('[data-option]');
+      options.forEach((opt) => {
+        opt.addEventListener('click', () => {
+          const picked = Number(opt.dataset.option);
+          const right = picked === answer;
+          options.forEach((o) => (o.disabled = true));
+          options[answer].classList.remove('text-slate');
+          options[answer].classList.add('border-brand-green-dark', 'bg-brand-green-soft', 'text-brand-green-dark');
+          if (!right) {
+            opt.classList.remove('text-slate');
+            opt.classList.add('border-accent-orange', 'text-accent-orange', 'line-through');
+          }
+          const verdict = q.querySelector<HTMLElement>('[data-verdict]')!;
+          verdict.textContent = right ? 'Correct. ' : 'Not quite. ';
+          verdict.classList.add(...(right ? ['text-brand-green-dark', 'dark:text-brand-green'] : ['text-accent-orange']));
+          q.querySelector<HTMLElement>('[data-explanation]')!.hidden = false;
+          answered++;
+          if (right) correct++;
+          if (answered === questions.length) {
+            scoreEl.textContent =
+              correct === questions.length
+                ? `${correct}/${questions.length}. You've got this chapter.`
+                : `${correct}/${questions.length}. Reread the terms you missed, then try again tomorrow.`;
+          }
+        });
+      });
+    });
+  });
+
+  let savedView = 'tree';
+  try {
+    savedView = localStorage.getItem(VIEW_KEY) ?? 'tree';
+  } catch {
+    // Fall back to the tree view.
+  }
+  if (!openFromHash()) setView(savedView === 'chapters' ? 'chapters' : 'tree');
+  render();
+</script>
